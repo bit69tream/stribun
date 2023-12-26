@@ -12,6 +12,7 @@
  ********************************************************************************************/
 
 #include "raylib.h"
+#include "raymath.h"
 
 #if defined(PLATFORM_WEB)
 #define CUSTOM_MODAL_DIALOGS
@@ -31,18 +32,70 @@
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
-static const int screenWidth = 500;
-static const int screenHeight = 700;
+#define MAX_PLAYER_HEALTH 100
+
+typedef struct {
+  Vector2 position;
+  int health;
+} Player;
+
+static const int screenWidth = 512;
+static const int screenHeight = 512;
 
 static RenderTexture2D target = { 0 };
 
+static Vector2 mouseCursor = {0};
+static Player player = {0};
+
+#define MOUSE_SENSITIVITY 0.5f
+
 void UpdateDrawFrame(void) {
+  /* update mouse position */
+  {
+    Vector2 delta =
+      Vector2Multiply(GetMouseDelta(),
+                      (Vector2) {
+                        .x = MOUSE_SENSITIVITY,
+                        .y = MOUSE_SENSITIVITY,
+                      });
+    mouseCursor = Vector2Add(mouseCursor, delta);
+    mouseCursor =
+      Vector2Clamp(mouseCursor,
+                   Vector2Zero(),
+                   (Vector2) {
+                     .x = screenWidth,
+                     .y = screenHeight,
+                   });
+  }
+
+  #define PLAYER_MOVEMENT_SPEED 3
+
+  if (IsKeyDown(KEY_E)) {
+    player.position.y -= PLAYER_MOVEMENT_SPEED;
+  }
+
+  if (IsKeyDown(KEY_S)) {
+    player.position.x -= PLAYER_MOVEMENT_SPEED;
+  }
+
+  if (IsKeyDown(KEY_D)) {
+    player.position.y += PLAYER_MOVEMENT_SPEED;
+  }
+
+  if (IsKeyDown(KEY_F)) {
+    player.position.x += PLAYER_MOVEMENT_SPEED;
+  }
+
   BeginTextureMode(target); {
     ClearBackground(BLACK);
 
     DrawRectangle(0, 0, screenWidth, screenHeight, SKYBLUE);
-  } EndTextureMode();
 
+    DrawCircleV(player.position, 6, WHITE);
+    DrawCircleV(player.position, 5, RED);
+
+    DrawCircleV(mouseCursor, 5, RED);
+  } EndTextureMode();
 
   BeginDrawing(); {
     ClearBackground(BLACK);
@@ -53,8 +106,7 @@ void UpdateDrawFrame(void) {
     float aspect = width / height;
 
     float finalHeight = MAX((float)GetScreenHeight(), height);
-
-    float finalWidth = finalHeight * aspect;
+    float finalWidth = finalHeight;
 
     DrawTexturePro(target.texture,
                    (Rectangle) {
@@ -86,6 +138,21 @@ int main(void) {
 #if defined(PLATFORM_DESKTOP)
   SetWindowState(FLAG_WINDOW_RESIZABLE);
 #endif
+
+  HideCursor();
+  DisableCursor();
+
+  mouseCursor = (Vector2) {
+    .x = screenWidth / 2,
+    .y = (screenHeight / 6),
+  };
+
+  player = (Player) {
+    .position = (Vector2) {
+      .x = screenWidth / 2,
+      .y = screenHeight - (screenHeight / 6),
+    },
+  };
 
   target = LoadRenderTexture(screenWidth, screenHeight);
   /* SetTextureFilter(target.texture, TEXTURE_FILTER_BILINEAR); */
