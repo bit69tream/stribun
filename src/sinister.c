@@ -82,7 +82,10 @@ int main(void) {
   SetTraceLogLevel(LOG_NONE);
 #endif
   InitWindow(screenWidth, screenHeight, "sinister");
+
+#if defined(PLATFORM_DESKTOP)
   SetWindowState(FLAG_WINDOW_RESIZABLE);
+#endif
 
   target = LoadRenderTexture(screenWidth, screenHeight);
   /* SetTextureFilter(target.texture, TEXTURE_FILTER_BILINEAR); */
