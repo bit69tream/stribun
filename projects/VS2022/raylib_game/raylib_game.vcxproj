@@ -351,10 +351,10 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\src\raylib_game.c" />
+    <ClCompile Include="..\..\..\src\sinister.c" />
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="..\..\..\src\raylib_game.rc" />
+    <ResourceCompile Include="..\..\..\src\sinister.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
