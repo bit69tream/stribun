@@ -13,6 +13,7 @@
 
 #include "raylib.h"
 #include "raymath.h"
+#include "rlgl.h"
 
 #if defined(PLATFORM_WEB)
 #define CUSTOM_MODAL_DIALOGS
@@ -39,13 +40,25 @@ typedef struct {
   int health;
 } Player;
 
-static const int screenWidth = 512;
-static const int screenHeight = 512;
+static const int screenWidth = 1280;
+static const int screenHeight = 720;
 
-static RenderTexture2D target = { 0 };
+static Shader stars = {0};
+static int stars_time = 0;
+
+static const Vector2 screen = {
+  .x = screenWidth,
+  .y = screenHeight,
+};
+
+static RenderTexture2D target = {0};
+
+static Texture2D nebula_noise = {0};
 
 static Vector2 mouseCursor = {0};
 static Player player = {0};
+
+static float time = 0;
 
 #define MOUSE_SENSITIVITY 0.5f
 
@@ -62,10 +75,7 @@ void UpdateDrawFrame(void) {
     mouseCursor =
       Vector2Clamp(mouseCursor,
                    Vector2Zero(),
-                   (Vector2) {
-                     .x = screenWidth,
-                     .y = screenHeight,
-                   });
+                   screen);
   }
 
   #define PLAYER_MOVEMENT_SPEED 3
@@ -86,10 +96,42 @@ void UpdateDrawFrame(void) {
     player.position.x += PLAYER_MOVEMENT_SPEED;
   }
 
+  player.position =
+    Vector2Clamp(player.position,
+                 Vector2Zero(),
+                 screen);
+
   BeginTextureMode(target); {
     ClearBackground(BLACK);
 
-    DrawRectangle(0, 0, screenWidth, screenHeight, SKYBLUE);
+    SetShaderValue(stars, stars_time, &time, SHADER_UNIFORM_FLOAT);
+
+    BeginBlendMode(BLEND_ALPHA); {
+      DrawRectangle(0, 0,
+                    screenWidth, screenHeight,
+                    CLITERAL(Color) {
+                      /* 48, 25, 52, 255 */
+                      19, 14, 35, 255
+                    });
+      BeginShaderMode(stars); {
+        DrawTexturePro(nebula_noise,
+                       (Rectangle) {
+                         .x = 0,
+                         .y = 0,
+                         .width = nebula_noise.width,
+                         .height = nebula_noise.height,
+                       },
+                       (Rectangle) {
+                         .x = 0,
+                         .y = 0,
+                         .width = screen.x,
+                         .height = screen.y,
+                       },
+                       Vector2Zero(),
+                       0,
+                       WHITE);
+      } EndShaderMode();
+    } EndBlendMode();
 
     DrawCircleV(player.position, 6, WHITE);
     DrawCircleV(player.position, 5, RED);
@@ -104,7 +146,7 @@ void UpdateDrawFrame(void) {
     float height = (float)target.texture.height;
 
     float finalHeight = MAX((float)GetScreenHeight(), height);
-    float finalWidth = finalHeight;
+    float finalWidth = finalHeight * (width / height);
 
     DrawTexturePro(target.texture,
                    (Rectangle) {
@@ -122,8 +164,9 @@ void UpdateDrawFrame(void) {
                    (Vector2) { finalWidth / 2, finalHeight / 2 },
                    0.0f,
                    WHITE);
-  }
-  EndDrawing();
+  } EndDrawing();
+
+  time += GetFrameTime();
 }
 
 
@@ -134,7 +177,7 @@ int main(void) {
   InitWindow(screenWidth, screenHeight, "sinister");
 
 #if defined(PLATFORM_DESKTOP)
-  SetWindowState(FLAG_WINDOW_RESIZABLE);
+  /* SetWindowState(FLAG_WINDOW_RESIZABLE); */
 #endif
 
   HideCursor();
@@ -152,8 +195,28 @@ int main(void) {
     },
   };
 
+  time = 0;
+
+  Image n = GenImagePerlinNoise(screenWidth / 4,
+                                screenHeight / 4,
+                                0, 0, 5);
+  nebula_noise = LoadTextureFromImage(n);
+  SetTextureFilter(nebula_noise, TEXTURE_FILTER_BILINEAR);
+  UnloadImage(n);
+
+  stars = LoadShader(NULL, "resources/stars.frag");
+  stars_time = GetShaderLocation(stars, "time");
+  SetShaderValue(stars,
+                 GetShaderLocation(stars, "resolution"),
+                 &screen,
+                 SHADER_UNIFORM_VEC2);
+
   target = LoadRenderTexture(screenWidth, screenHeight);
   /* SetTextureFilter(target.texture, TEXTURE_FILTER_BILINEAR); */
+
+  /* fix fragTexCoord for rectangles */
+  Texture2D texture = { rlGetTextureIdDefault(), 1, 1, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 };
+  SetShapesTexture(texture, (Rectangle){ 0.0f, 0.0f, 1.0f, 1.0f });
 
 #if defined(PLATFORM_WEB)
   emscripten_set_main_loop(UpdateDrawFrame, 60, 1);
