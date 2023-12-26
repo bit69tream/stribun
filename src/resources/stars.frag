@@ -39,7 +39,7 @@ void main() {
 
   uv *= 3.;
 
-  float starColor = 0;
+  float starBrigtness = 0;
 
   vec2 gv = fract(uv) - .5;
   vec2 id = floor(uv);
@@ -56,11 +56,14 @@ void main() {
                         smoothstep(.9, 1., size) * .5);
 
       star *= sin((time / 5.) + n * 6.2831) * .5;
-      starColor += star * size;
+      starBrigtness += star * size;
     }
   }
 
+  // vec4 starColor = vec4(0., .31, .596, .1);
+  vec4 starColor = vec4(.235, .314, .569, .1);
+
   finalColor =
     nebulaColor +
-    vec4(clamp(starColor, 0., 10.));
+    starColor * vec4(clamp(starBrigtness, 0., 10.));
 }
