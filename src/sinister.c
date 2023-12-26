@@ -103,8 +103,6 @@ void UpdateDrawFrame(void) {
     float width = (float)target.texture.width;
     float height = (float)target.texture.height;
 
-    float aspect = width / height;
-
     float finalHeight = MAX((float)GetScreenHeight(), height);
     float finalWidth = finalHeight;
 
