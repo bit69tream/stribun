@@ -46,7 +46,7 @@ static const int screenWidth = 1280;
 static const int screenHeight = 720;
 
 static Shader stars = {0};
-static int stars_time = 0;
+static int starsTime = 0;
 
 static const Vector2 screen = {
   .x = screenWidth,
@@ -60,14 +60,23 @@ static const Vector2 background = {
 
 static RenderTexture2D target = {0};
 
-static Texture2D nebula_noise = {0};
+static Texture2D nebulaNoise = {0};
+
+static Texture2D interface = {0};
+
+static Rectangle mouseCursorRect = {
+  .x = 0,
+  .y = 0,
+  .width = 15,
+  .height = 15,
+};
 
 static Vector2 mouseCursor = {0};
 static Player player = {0};
 
 static float time = 0;
 
-#define MOUSE_SENSITIVITY 0.5f
+#define MOUSE_SENSITIVITY 0.7f
 
 void UpdateDrawFrame(void) {
   /* update mouse position */
@@ -117,7 +126,7 @@ void UpdateDrawFrame(void) {
   BeginTextureMode(target); {
     ClearBackground(BLACK);
 
-    SetShaderValue(stars, stars_time, &time, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(stars, starsTime, &time, SHADER_UNIFORM_FLOAT);
 
     BeginBlendMode(BLEND_ALPHA); {
       DrawRectangle(0, 0,
@@ -127,12 +136,12 @@ void UpdateDrawFrame(void) {
                       19, 14, 35, 255
                     });
       BeginShaderMode(stars); {
-        DrawTexturePro(nebula_noise,
+        DrawTexturePro(nebulaNoise,
                        (Rectangle) {
                          .x = background_x,
                          .y = background_y,
-                         .width = nebula_noise.width - BACKGROUND_PARALLAX_OFFSET,
-                         .height = nebula_noise.height - BACKGROUND_PARALLAX_OFFSET,
+                         .width = nebulaNoise.width - BACKGROUND_PARALLAX_OFFSET,
+                         .height = nebulaNoise.height - BACKGROUND_PARALLAX_OFFSET,
                        },
                        (Rectangle) {
                          .x = 0,
@@ -149,7 +158,19 @@ void UpdateDrawFrame(void) {
     DrawCircleV(player.position, 6, WHITE);
     DrawCircleV(player.position, 5, RED);
 
-    DrawCircleV(mouseCursor, 5, RED);
+#define MOUSE_CURSOR_SCALE 2
+    DrawTexturePro(interface,
+                   mouseCursorRect,
+                   (Rectangle) {
+                     .x = mouseCursor.x,
+                     .y = mouseCursor.y,
+                     .width = mouseCursorRect.width * MOUSE_CURSOR_SCALE,
+                     .height = mouseCursorRect.height * MOUSE_CURSOR_SCALE,
+                   },
+                   (Vector2) {
+                     .x = (mouseCursorRect.width * MOUSE_CURSOR_SCALE) / 2,
+                     .y = (mouseCursorRect.height * MOUSE_CURSOR_SCALE) / 2,
+                   }, 0, WHITE);
   } EndTextureMode();
 
   BeginDrawing(); {
@@ -215,12 +236,14 @@ int main(void) {
   Image n = GenImagePerlinNoise(background.x / NEBULAE_NOISE_DOWNSCALE_FACTOR,
                                 background.y / NEBULAE_NOISE_DOWNSCALE_FACTOR,
                                 0, 0, 5);
-  nebula_noise = LoadTextureFromImage(n);
-  SetTextureFilter(nebula_noise, TEXTURE_FILTER_BILINEAR);
+  nebulaNoise = LoadTextureFromImage(n);
+  SetTextureFilter(nebulaNoise, TEXTURE_FILTER_BILINEAR);
   UnloadImage(n);
 
+  interface = LoadTexture("resources/ui.png");
+
   stars = LoadShader(NULL, "resources/stars.frag");
-  stars_time = GetShaderLocation(stars, "time");
+  starsTime = GetShaderLocation(stars, "time");
   SetShaderValue(stars,
                  GetShaderLocation(stars, "resolution"),
                  &background,
