@@ -228,7 +228,7 @@ void renderBackground(void) {
     DrawRectangle(0, 0,
                   screenWidth, screenHeight,
                   CLITERAL(Color) {
-                    19, 14, 35, 255
+                    19, 14, 35, 100
                   });
     BeginShaderMode(stars); {
       DrawTexturePro(nebulaNoise,
