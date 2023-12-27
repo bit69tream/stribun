@@ -363,6 +363,87 @@ int whichThrustersToUse(void) {
   return thrusters;
 }
 
+void renderThrusters(int thrusters) {
+  Color a = Fade(WHITE, 0.85f);
+
+  if (thrusters & THRUSTERS_BOTTOM) {
+    DrawTexturePro(sprites,
+                   thrustersRects[THRUSTERS_BOTTOM],
+                   (Rectangle) {
+                     .x = 0,
+                     .y = 14,
+                     .width = thrustersRects[THRUSTERS_BOTTOM].width,
+                     .height = thrustersRects[THRUSTERS_BOTTOM].height,
+                   },
+                   Vector2Zero(),
+                   0,
+                   a);
+  }
+
+  if (thrusters & THRUSTERS_TOP) {
+    DrawTexturePro(sprites,
+                   thrustersRects[THRUSTERS_TOP],
+                   (Rectangle) {
+                     .x = 0,
+                     .y = 0,
+                     .width = thrustersRects[THRUSTERS_TOP].width,
+                     .height = thrustersRects[THRUSTERS_TOP].height,
+                   },
+                   Vector2Zero(),
+                   0,
+                   a);
+  }
+
+
+  if (thrusters & THRUSTERS_LEFT) {
+    DrawTexturePro(sprites,
+                   thrustersRects[THRUSTERS_LEFT],
+                   (Rectangle) {
+                     .x = 0,
+                     .y = 0,
+                     .width = thrustersRects[THRUSTERS_LEFT].width,
+                     .height = thrustersRects[THRUSTERS_LEFT].height,
+                   },
+                   Vector2Zero(),
+                   0,
+                   a);
+  }
+
+  if (thrusters & THRUSTERS_RIGHT) {
+    DrawTexturePro(sprites,
+                   thrustersRects[THRUSTERS_RIGHT],
+                   (Rectangle) {
+                     .x = 14,
+                     .y = 0,
+                     .width = thrustersRects[THRUSTERS_RIGHT].width,
+                     .height = thrustersRects[THRUSTERS_RIGHT].height,
+                   },
+                   Vector2Zero(),
+                   0,
+                   a);
+  }
+}
+
+typedef struct {
+  RenderTexture2D texture;
+  float alpha;
+  Vector2 origin;
+  float angle;
+} ThrusterTrail;
+
+#define THRUSTER_TRAILS_MAX 10
+static ThrusterTrail thrusterTrail[THRUSTER_TRAILS_MAX] = {0};
+
+ThrusterTrail *pushThrusterTrail() {
+  for (int i = 0; i < THRUSTER_TRAILS_MAX; i++) {
+    if (thrusterTrail[i].alpha <= 0.0f) {
+      return &thrusterTrail[i];
+    }
+  }
+
+  return NULL;
+}
+
 void renderPlayerTexture(void) {
   int thrusters = whichThrustersToUse();
 
@@ -381,66 +462,28 @@ void renderPlayerTexture(void) {
                    0,
                    WHITE);
 
-    Color a = Fade(WHITE, 0.85f);
-
-    if (thrusters & THRUSTERS_BOTTOM) {
-      DrawTexturePro(sprites,
-                     thrustersRects[THRUSTERS_BOTTOM],
-                     (Rectangle) {
-                       .x = 0,
-                       .y = 14,
-                       .width = thrustersRects[THRUSTERS_BOTTOM].width,
-                       .height = thrustersRects[THRUSTERS_BOTTOM].height,
-                     },
-                     Vector2Zero(),
-                     0,
-                     a);
-    }
-
-    if (thrusters & THRUSTERS_TOP) {
-      DrawTexturePro(sprites,
-                     thrustersRects[THRUSTERS_TOP],
-                     (Rectangle) {
-                       .x = 0,
-                       .y = 0,
-                       .width = thrustersRects[THRUSTERS_TOP].width,
-                       .height = thrustersRects[THRUSTERS_TOP].height,
-                     },
-                     Vector2Zero(),
-                     0,
-                     a);
-    }
-
-
-    if (thrusters & THRUSTERS_LEFT) {
-      DrawTexturePro(sprites,
-                     thrustersRects[THRUSTERS_LEFT],
-                     (Rectangle) {
-                       .x = 0,
-                       .y = 0,
-                       .width = thrustersRects[THRUSTERS_LEFT].width,
-                       .height = thrustersRects[THRUSTERS_LEFT].height,
-                     },
-                     Vector2Zero(),
-                     0,
-                     a);
-    }
-
-    if (thrusters & THRUSTERS_RIGHT) {
-      DrawTexturePro(sprites,
-                     thrustersRects[THRUSTERS_RIGHT],
-                     (Rectangle) {
-                       .x = 14,
-                       .y = 0,
-                       .width = thrustersRects[THRUSTERS_RIGHT].width,
-                       .height = thrustersRects[THRUSTERS_RIGHT].height,
-                     },
-                     Vector2Zero(),
-                     0,
-                     a);
-    }
-
+    renderThrusters(thrusters);
   } EndTextureMode();
+
+  if (thrusters == 0) {
+    return;
+  }
+
+  ThrusterTrail *t = pushThrusterTrail();
+
+  if (t == NULL) {
+    return;
+  }
+
+  BeginTextureMode(t->texture); {
+    ClearBackground(BLANK);
+
+    renderThrusters(thrusters);
+  } EndTextureMode();
+
+  t->angle = playerLookingAngle();
+  t->alpha = 1.0f;
+  t->origin = player.position;
 }
 
 #define PLAYER_SCALE 3.5
@@ -466,6 +509,44 @@ void renderPlayer(void) {
                  WHITE);
 
   /* DrawCircleV(player.position, PLAYER_HITBOX_RADIUS, RED); */
+}
+
+void renderThrusterTrails(void) {
+  for (int i = 0; i < THRUSTER_TRAILS_MAX; i++) {
+    if (thrusterTrail[i].alpha <= 0.0f) {
+      continue;
+    }
+
+    DrawTexturePro(thrusterTrail[i].texture.texture,
+                   (Rectangle) {
+                     .x = 0,
+                     .y = 0,
+                     .width = thrusterTrail[i].texture.texture.width,
+                     .height = -thrusterTrail[i].texture.texture.height,
+                   },
+                   (Rectangle) {
+                     .x = thrusterTrail[i].origin.x,
+                     .y = thrusterTrail[i].origin.y,
+                     .width = thrusterTrail[i].texture.texture.width * PLAYER_SCALE,
+                     .height = thrusterTrail[i].texture.texture.height * PLAYER_SCALE,
+                   },
+                   (Vector2) {
+                     .x = (playerRect.width * PLAYER_SCALE) / 2,
+                     .y = (playerRect.height * PLAYER_SCALE) / 2,
+                   },
+                   thrusterTrail[i].angle,
+                   Fade(WHITE, thrusterTrail[i].alpha));
+  }
+}
+
+void updateThrusterTrails(void) {
+  for (int i = 0; i < THRUSTER_TRAILS_MAX; i++) {
+    if (thrusterTrail[i].alpha <= 0.0f) {
+      continue;
+    }
+
+    thrusterTrail[i].alpha = Clamp(thrusterTrail[i].alpha - 0.2f, 0.0f, 1.0f);
+  }
 }
 
 #define MOUSE_CURSOR_SCALE 2
@@ -522,6 +603,8 @@ void renderPhase1(void) {
     ClearBackground(BLACK);
 
     renderBackground();
+
+    renderThrusterTrails();
 
     renderProjectiles();
 
@@ -585,6 +668,7 @@ void updateProjectiles(void) {
 
 void UpdateDrawFrame(void) {
   updateProjectiles();
+  updateThrusterTrails();
 
   updateMouse();
   updatePlayerPosition();
@@ -649,6 +733,13 @@ int main(void) {
   target = LoadRenderTexture(screenWidth, screenHeight);
 
   playerTexture = LoadRenderTexture(playerRect.width, playerRect.height);
+
+  for (int i = 0; i < THRUSTER_TRAILS_MAX; i++) {
+    thrusterTrail[i].texture = LoadRenderTexture(playerRect.width, playerRect.height);
+    thrusterTrail[i].alpha = 0.0f;
+    thrusterTrail[i].origin = Vector2Zero();
+    thrusterTrail[i].angle = 0.0f;
+  }
 
   /* fix fragTexCoord for rectangles */
   Texture2D t = { rlGetTextureIdDefault(), 1, 1, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 };
