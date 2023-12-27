@@ -44,6 +44,7 @@
 typedef struct {
   Vector2 position;
   int health;
+  float fireCooldown;
 } Player;
 
 #define BACKGROUND_PARALLAX_OFFSET 10
@@ -82,113 +83,214 @@ static Player player = {0};
 
 static float time = 0;
 
+typedef enum {
+  PROJECTILE_NONE,
+  PROJECTILE_REGULAR,
+  PROJECTILE_SQUARED,
+} ProjectileType;
+
+typedef struct {
+  ProjectileType type;
+  float radius;
+  Vector2 delta;
+  Vector2 origin;
+
+  bool isHurtfulForPlayer;
+} Projectile;
+
+#define PROJECTILES_MAX 1024
+
+static Projectile projectiles[PROJECTILES_MAX] = {0};
+
 #define MOUSE_SENSITIVITY 0.7f
 
-void UpdateDrawFrame(void) {
-  /* update mouse position */
-  {
-    if (IsCursorHidden()) {
-      Vector2 delta =
-        Vector2Multiply(GetMouseDelta(),
-                        (Vector2) {
-                          .x = MOUSE_SENSITIVITY,
-                          .y = MOUSE_SENSITIVITY,
-                        });
-      mouseCursor = Vector2Add(mouseCursor, delta);
-    }
-
-    mouseCursor =
-      Vector2Clamp(mouseCursor,
-                   Vector2Zero(),
-                   screen);
-
-    if (!IsCursorHidden()) {
-      DisableCursor();
+Projectile *push_projectile(void) {
+  for (int i = 0; i < PROJECTILES_MAX; i++) {
+    if (projectiles[i].type == PROJECTILE_NONE) {
+      return &projectiles[i];
     }
   }
 
-  #define PLAYER_MOVEMENT_SPEED 3
+  return NULL;
+}
 
-  {
-    if (IsKeyDown(KEY_E)) {
-      player.position.y -= PLAYER_MOVEMENT_SPEED;
-    }
+static Vector2 lookingDirection = {0};
 
-    if (IsKeyDown(KEY_S)) {
-      player.position.x -= PLAYER_MOVEMENT_SPEED;
-    }
-
-    if (IsKeyDown(KEY_D)) {
-      player.position.y += PLAYER_MOVEMENT_SPEED;
-    }
-
-    if (IsKeyDown(KEY_F)) {
-      player.position.x += PLAYER_MOVEMENT_SPEED;
-    }
-
-    player.position =
-      Vector2Clamp(player.position,
-                   Vector2Zero(),
-                   screen);
-
+void updateMouse(void) {
+  if (IsCursorHidden()) {
+    Vector2 delta =
+      Vector2Multiply(GetMouseDelta(),
+                      (Vector2) {
+                        .x = MOUSE_SENSITIVITY,
+                        .y = MOUSE_SENSITIVITY,
+                      });
+    mouseCursor = Vector2Add(mouseCursor, delta);
   }
 
+  mouseCursor =
+    Vector2Clamp(mouseCursor,
+                 Vector2Zero(),
+                 screen);
+
+  if (!IsCursorHidden()) {
+    DisableCursor();
+  }
+
+  lookingDirection = Vector2Normalize(Vector2Subtract(mouseCursor, player.position));
+}
+
+#define PLAYER_FIRE_COOLDOWN 0.1f
+#define PLAYER_PROJECTILE_RADIUS 5
+#define PLAYER_PROJECTILE_SPEED 10.0f
+
+void tryFiringAShot(void) {
+  if (!IsMouseButtonDown(MOUSE_BUTTON_LEFT) ||
+      player.fireCooldown > 0.0f) {
+    return;
+  }
+
+  Projectile *new_projectile = push_projectile();
+
+  if (new_projectile == NULL) {
+    return;
+  }
+
+  *new_projectile = (Projectile) {
+    .type = PROJECTILE_REGULAR,
+    .isHurtfulForPlayer = false,
+    .origin = Vector2Add(player.position, lookingDirection),
+    .radius = PLAYER_PROJECTILE_RADIUS,
+    .delta = Vector2Scale(lookingDirection, PLAYER_PROJECTILE_SPEED),
+  };
+
+  player.fireCooldown = PLAYER_FIRE_COOLDOWN;
+}
+
+#define PLAYER_MOVEMENT_SPEED 3
+
+void updatePlayerPosition(void) {
+  if (IsKeyDown(KEY_E)) {
+    player.position.y -= PLAYER_MOVEMENT_SPEED;
+  }
+
+  if (IsKeyDown(KEY_S)) {
+    player.position.x -= PLAYER_MOVEMENT_SPEED;
+  }
+
+  if (IsKeyDown(KEY_D)) {
+    player.position.y += PLAYER_MOVEMENT_SPEED;
+  }
+
+  if (IsKeyDown(KEY_F)) {
+    player.position.x += PLAYER_MOVEMENT_SPEED;
+  }
+
+  player.position =
+    Vector2Clamp(player.position,
+                 Vector2Zero(),
+                 screen);
+}
+
+void renderBackground(void) {
   float background_x = Lerp(0, BACKGROUND_PARALLAX_OFFSET,
                             player.position.x / screen.x);
 
   float background_y = Lerp(0, BACKGROUND_PARALLAX_OFFSET,
                             player.position.y / screen.y);
 
+  SetShaderValue(stars, starsTime, &time, SHADER_UNIFORM_FLOAT);
+
+  BeginBlendMode(BLEND_ALPHA); {
+    DrawRectangle(0, 0,
+                  screenWidth, screenHeight,
+                  CLITERAL(Color) {
+                    19, 14, 35, 255
+                  });
+    BeginShaderMode(stars); {
+      DrawTexturePro(nebulaNoise,
+                     (Rectangle) {
+                       .x = background_x,
+                       .y = background_y,
+                       .width = nebulaNoise.width - BACKGROUND_PARALLAX_OFFSET,
+                       .height = nebulaNoise.height - BACKGROUND_PARALLAX_OFFSET,
+                     },
+                     (Rectangle) {
+                       .x = 0,
+                       .y = 0,
+                       .width = screen.x,
+                       .height = screen.y,
+                     },
+                     Vector2Zero(),
+                     0,
+                     WHITE);
+    } EndShaderMode();
+  } EndBlendMode();
+}
+
+void renderPlayer(void) {
+  DrawCircleV(player.position, 6, WHITE);
+  DrawCircleV(player.position, 5, RED);
+}
+
+#define MOUSE_CURSOR_SCALE 2
+void renderMouseCursor(void) {
+  DrawTexturePro(interface,
+                 mouseCursorRect,
+                 (Rectangle) {
+                   .x = mouseCursor.x,
+                   .y = mouseCursor.y,
+                   .width = mouseCursorRect.width * MOUSE_CURSOR_SCALE,
+                   .height = mouseCursorRect.height * MOUSE_CURSOR_SCALE,
+                 },
+                 (Vector2) {
+                   .x = (mouseCursorRect.width * MOUSE_CURSOR_SCALE) / 2,
+                   .y = (mouseCursorRect.height * MOUSE_CURSOR_SCALE) / 2,
+                 }, 0, WHITE);
+}
+
+void renderProjectiles(void) {
+  for (int i = 0; i < PROJECTILES_MAX; i++) {
+    switch (projectiles[i].type) {
+    case PROJECTILE_NONE: break;
+    case PROJECTILE_REGULAR: {
+      DrawCircleV(projectiles[i].origin, projectiles[i].radius, BLUE);
+      DrawCircleV(projectiles[i].origin, projectiles[i].radius - 1, WHITE);
+    } break;
+    case PROJECTILE_SQUARED: {
+      Rectangle shape = (Rectangle) {
+        .x = projectiles[i].origin.x - projectiles[i].radius,
+        .y = projectiles[i].origin.y - projectiles[i].radius,
+        .width = projectiles[i].radius * 2,
+        .height = projectiles[i].radius * 2,
+      };
+
+      DrawRectangleRec(shape, BLUE);
+
+      shape.x += 1;
+      shape.y += 1;
+      shape.width -= 2;
+      shape.height -= 2;
+
+      DrawRectangleRec(shape, WHITE);
+    } break;
+    }
+  }
+}
+
+void renderPhase1(void) {
   BeginTextureMode(target); {
     ClearBackground(BLACK);
 
-    SetShaderValue(stars, starsTime, &time, SHADER_UNIFORM_FLOAT);
+    renderBackground();
 
-    BeginBlendMode(BLEND_ALPHA); {
-      DrawRectangle(0, 0,
-                    screenWidth, screenHeight,
-                    CLITERAL(Color) {
-                      /* 48, 25, 52, 255 */
-                      19, 14, 35, 255
-                    });
-      BeginShaderMode(stars); {
-        DrawTexturePro(nebulaNoise,
-                       (Rectangle) {
-                         .x = background_x,
-                         .y = background_y,
-                         .width = nebulaNoise.width - BACKGROUND_PARALLAX_OFFSET,
-                         .height = nebulaNoise.height - BACKGROUND_PARALLAX_OFFSET,
-                       },
-                       (Rectangle) {
-                         .x = 0,
-                         .y = 0,
-                         .width = screen.x,
-                         .height = screen.y,
-                       },
-                       Vector2Zero(),
-                       0,
-                       WHITE);
-      } EndShaderMode();
-    } EndBlendMode();
+    renderProjectiles();
 
-    DrawCircleV(player.position, 6, WHITE);
-    DrawCircleV(player.position, 5, RED);
-
-#define MOUSE_CURSOR_SCALE 2
-    DrawTexturePro(interface,
-                   mouseCursorRect,
-                   (Rectangle) {
-                     .x = mouseCursor.x,
-                     .y = mouseCursor.y,
-                     .width = mouseCursorRect.width * MOUSE_CURSOR_SCALE,
-                     .height = mouseCursorRect.height * MOUSE_CURSOR_SCALE,
-                   },
-                   (Vector2) {
-                     .x = (mouseCursorRect.width * MOUSE_CURSOR_SCALE) / 2,
-                     .y = (mouseCursorRect.height * MOUSE_CURSOR_SCALE) / 2,
-                   }, 0, WHITE);
+    renderPlayer();
+    renderMouseCursor();
   } EndTextureMode();
+}
 
+void renderFinal(void) {
   BeginDrawing(); {
     ClearBackground(BLACK);
 
@@ -214,11 +316,48 @@ void UpdateDrawFrame(void) {
                    (Vector2) { finalWidth / 2, finalHeight / 2 },
                    0.0f,
                    WHITE);
+
+    DrawFPS(0, 0);
   } EndDrawing();
+}
+
+void updateProjectiles(void) {
+  Rectangle legalArea = {
+    .x = -(screen.x / 2),
+    .y = -(screen.y / 2),
+    .width = screen.x * 2,
+    .height = screen.y * 2,
+  };
+
+  for (int i = 0; i < PROJECTILES_MAX; i++) {
+    if (projectiles[i].type == PROJECTILE_NONE) {
+      continue;
+    }
+
+    projectiles[i].origin = Vector2Add(projectiles[i].delta, projectiles[i].origin);
+
+    if (!CheckCollisionPointRec(projectiles[i].origin,
+                                legalArea)) {
+      projectiles[i].type = PROJECTILE_NONE;
+    }
+  }
+}
+
+void UpdateDrawFrame(void) {
+  updateProjectiles();
+
+  updateMouse();
+  updatePlayerPosition();
+
+  player.fireCooldown -= GetFrameTime();
+
+  tryFiringAShot();
+
+  renderPhase1();
+  renderFinal();
 
   time += GetFrameTime();
 }
-
 
 int main(void) {
 #if !defined(_DEBUG)
@@ -228,10 +367,9 @@ int main(void) {
 
 #if defined(PLATFORM_DESKTOP)
   SetExitKey(KEY_NULL);
-  /* SetWindowState(FLAG_WINDOW_RESIZABLE); */
+  SetWindowState(FLAG_WINDOW_RESIZABLE);
 #endif
 
-  /* HideCursor(); */
   DisableCursor();
 
   mouseCursor = (Vector2) {
@@ -245,6 +383,8 @@ int main(void) {
       .y = screenHeight - (screenHeight / 6),
     },
   };
+
+  memset(projectiles, 0, sizeof(projectiles));
 
   time = 0;
 
@@ -269,8 +409,8 @@ int main(void) {
   target = LoadRenderTexture(screenWidth, screenHeight);
 
   /* fix fragTexCoord for rectangles */
-  Texture2D texture = { rlGetTextureIdDefault(), 1, 1, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 };
-  SetShapesTexture(texture, (Rectangle){ 0.0f, 0.0f, 1.0f, 1.0f });
+  Texture2D t = { rlGetTextureIdDefault(), 1, 1, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 };
+  SetShapesTexture(t, (Rectangle){ 0.0f, 0.0f, 1.0f, 1.0f });
 
 #if defined(PLATFORM_WEB)
   emscripten_set_main_loop(UpdateDrawFrame, 60, 1);
