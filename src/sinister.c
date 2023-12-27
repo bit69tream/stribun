@@ -71,7 +71,7 @@ static RenderTexture2D target = {0};
 
 static Texture2D nebulaNoise = {0};
 
-static Texture2D interface = {0};
+static Texture2D sprites = {0};
 
 static Rectangle mouseCursorRect = {
   .x = 0,
@@ -245,7 +245,7 @@ void renderPlayer(void) {
 
   float angle = Vector2Angle(up, lookingDirection) * RAD2DEG;
 
-  DrawTexturePro(interface,
+  DrawTexturePro(sprites,
                  playerRect,
                  (Rectangle) {
                    .x = player.position.x,
@@ -265,7 +265,7 @@ void renderPlayer(void) {
 
 #define MOUSE_CURSOR_SCALE 2
 void renderMouseCursor(void) {
-  DrawTexturePro(interface,
+  DrawTexturePro(sprites,
                  mouseCursorRect,
                  (Rectangle) {
                    .x = mouseCursor.x,
@@ -428,7 +428,7 @@ int main(void) {
   SetTextureFilter(nebulaNoise, TEXTURE_FILTER_TRILINEAR);
   UnloadImage(n);
 
-  interface = LoadTexture("resources/ui.png");
+  sprites = LoadTexture("resources/sprites.png");
 
   stars = LoadShader(NULL, TextFormat("resources/stars-%d.frag", GLSL_VERSION));
   starsTime = GetShaderLocation(stars, "time");
