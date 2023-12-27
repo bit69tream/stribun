@@ -41,6 +41,8 @@
 
 #define MAX_PLAYER_HEALTH 100
 
+#define PLAYER_HEATBOX_RADIUS 8
+
 typedef struct {
   Vector2 position;
   int health;
@@ -76,6 +78,13 @@ static Rectangle mouseCursorRect = {
   .y = 0,
   .width = 15,
   .height = 15,
+};
+
+static Rectangle playerRect = {
+  .x = 1,
+  .y = 17,
+  .width = 23,
+  .height = 23,
 };
 
 static Vector2 mouseCursor = {0};
@@ -141,7 +150,7 @@ void updateMouse(void) {
 
 #define PLAYER_FIRE_COOLDOWN 0.1f
 #define PLAYER_PROJECTILE_RADIUS 5
-#define PLAYER_PROJECTILE_SPEED 10.0f
+#define PLAYER_PROJECTILE_SPEED 7.0f
 
 void tryFiringAShot(void) {
   if (!IsMouseButtonDown(MOUSE_BUTTON_LEFT) ||
@@ -158,7 +167,7 @@ void tryFiringAShot(void) {
   *new_projectile = (Projectile) {
     .type = PROJECTILE_REGULAR,
     .isHurtfulForPlayer = false,
-    .origin = Vector2Add(player.position, lookingDirection),
+    .origin = Vector2Add(player.position, Vector2Scale(lookingDirection, 25)),
     .radius = PLAYER_PROJECTILE_RADIUS,
     .delta = Vector2Scale(lookingDirection, PLAYER_PROJECTILE_SPEED),
   };
@@ -227,9 +236,31 @@ void renderBackground(void) {
   } EndBlendMode();
 }
 
+#define PLAYER_SCALE 2
 void renderPlayer(void) {
-  DrawCircleV(player.position, 6, WHITE);
-  DrawCircleV(player.position, 5, RED);
+  Vector2 up = {
+    .x = 0,
+    .y = -1,
+  };
+
+  float angle = Vector2Angle(up, lookingDirection) * RAD2DEG;
+
+  DrawTexturePro(interface,
+                 playerRect,
+                 (Rectangle) {
+                   .x = player.position.x,
+                   .y = player.position.y,
+                   .width = playerRect.width * PLAYER_SCALE,
+                   .height = playerRect.height * PLAYER_SCALE,
+                 },
+                 (Vector2) {
+                   .x = (playerRect.width * PLAYER_SCALE) / 2,
+                   .y = (playerRect.height * PLAYER_SCALE) / 2,
+                 },
+                 angle,
+                 WHITE);
+
+  /* DrawCircleV(player.position, 8, RED); */
 }
 
 #define MOUSE_CURSOR_SCALE 2
@@ -394,7 +425,7 @@ int main(void) {
                                 background.y / NEBULAE_NOISE_DOWNSCALE_FACTOR,
                                 0, 0, 2);
   nebulaNoise = LoadTextureFromImage(n);
-  SetTextureFilter(nebulaNoise, TEXTURE_FILTER_BILINEAR);
+  SetTextureFilter(nebulaNoise, TEXTURE_FILTER_TRILINEAR);
   UnloadImage(n);
 
   interface = LoadTexture("resources/ui.png");
