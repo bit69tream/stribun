@@ -87,6 +87,28 @@ static Rectangle playerRect = {
   .height = 23,
 };
 
+#define BOTTOM_FLAME_RECTS_COUNT 3
+static Rectangle bottomFlameRects[BOTTOM_FLAME_RECTS_COUNT] = {
+  [0] = {
+    .x = 0,
+    .y = 41,
+    .width = 6,
+    .height = 9,
+  },
+  [1] = {
+    .x = 7,
+    .y = 41,
+    .width = 6,
+    .height = 9,
+  },
+  [2] = {
+    .x = 14,
+    .y = 41,
+    .width = 6,
+    .height = 9,
+  },
+};
+
 static Vector2 mouseCursor = {0};
 static Player player = {0};
 
@@ -177,20 +199,28 @@ void tryFiringAShot(void) {
 
 #define PLAYER_MOVEMENT_SPEED 3
 
+static bool isPlayerMoving = false;
+
 void updatePlayerPosition(void) {
+  isPlayerMoving = false;
+
   if (IsKeyDown(KEY_E)) {
+    isPlayerMoving = true;
     player.position.y -= PLAYER_MOVEMENT_SPEED;
   }
 
   if (IsKeyDown(KEY_S)) {
+    isPlayerMoving = true;
     player.position.x -= PLAYER_MOVEMENT_SPEED;
   }
 
   if (IsKeyDown(KEY_D)) {
+    isPlayerMoving = true;
     player.position.y += PLAYER_MOVEMENT_SPEED;
   }
 
   if (IsKeyDown(KEY_F)) {
+    isPlayerMoving = true;
     player.position.x += PLAYER_MOVEMENT_SPEED;
   }
 
@@ -236,6 +266,57 @@ void renderBackground(void) {
   } EndBlendMode();
 }
 
+static RenderTexture2D playerTexture = {0};
+
+void renderPlayerTexture(void) {
+  int leftFlame = GetRandomValue(0, BOTTOM_FLAME_RECTS_COUNT - 1);
+  int rightFlame = GetRandomValue(0, BOTTOM_FLAME_RECTS_COUNT - 1);
+
+  BeginTextureMode(playerTexture); {
+    ClearBackground(BLANK);
+
+    DrawTexturePro(sprites,
+                   playerRect,
+                   (Rectangle) {
+                     .x = 0,
+                     .y = 0,
+                     .width = playerRect.width,
+                     .height = playerRect.height,
+                   },
+                   Vector2Zero(),
+                   0,
+                   WHITE);
+
+    if (isPlayerMoving) {
+      Color a = Fade(WHITE, 0.9);
+
+      DrawTexturePro(sprites,
+                     bottomFlameRects[leftFlame],
+                     (Rectangle) {
+                       .x = 3,
+                       .y = playerRect.height,
+                       .width = bottomFlameRects[leftFlame].width,
+                       .height = bottomFlameRects[leftFlame].height,
+                     },
+                     Vector2Zero(),
+                     0,
+                     a);
+
+      DrawTexturePro(sprites,
+                     bottomFlameRects[rightFlame],
+                     (Rectangle) {
+                       .x = 14,
+                       .y = playerRect.height,
+                       .width = bottomFlameRects[rightFlame].width,
+                       .height = bottomFlameRects[rightFlame].height,
+                     },
+                     Vector2Zero(),
+                     0,
+                     a);
+    }
+  } EndTextureMode();
+}
+
 #define PLAYER_SCALE 2
 void renderPlayer(void) {
   Vector2 up = {
@@ -245,13 +326,18 @@ void renderPlayer(void) {
 
   float angle = Vector2Angle(up, lookingDirection) * RAD2DEG;
 
-  DrawTexturePro(sprites,
-                 playerRect,
+  DrawTexturePro(playerTexture.texture,
+                 (Rectangle) {
+                   .x = 0,
+                   .y = 0,
+                   .width = playerTexture.texture.width,
+                   .height = -playerTexture.texture.height,
+                 },
                  (Rectangle) {
                    .x = player.position.x,
                    .y = player.position.y,
-                   .width = playerRect.width * PLAYER_SCALE,
-                   .height = playerRect.height * PLAYER_SCALE,
+                   .width = playerTexture.texture.width * PLAYER_SCALE,
+                   .height = playerTexture.texture.height * PLAYER_SCALE,
                  },
                  (Vector2) {
                    .x = (playerRect.width * PLAYER_SCALE) / 2,
@@ -309,6 +395,8 @@ void renderProjectiles(void) {
 }
 
 void renderPhase1(void) {
+  renderPlayerTexture();
+
   BeginTextureMode(target); {
     ClearBackground(BLACK);
 
@@ -425,7 +513,7 @@ int main(void) {
                                 background.y / NEBULAE_NOISE_DOWNSCALE_FACTOR,
                                 0, 0, 2);
   nebulaNoise = LoadTextureFromImage(n);
-  SetTextureFilter(nebulaNoise, TEXTURE_FILTER_TRILINEAR);
+  SetTextureFilter(nebulaNoise, TEXTURE_FILTER_BILINEAR);
   UnloadImage(n);
 
   sprites = LoadTexture("resources/sprites.png");
@@ -438,6 +526,8 @@ int main(void) {
                  SHADER_UNIFORM_VEC2);
 
   target = LoadRenderTexture(screenWidth, screenHeight);
+
+  playerTexture = LoadRenderTexture(playerRect.width, playerRect.height + 6);
 
   /* fix fragTexCoord for rectangles */
   Texture2D t = { rlGetTextureIdDefault(), 1, 1, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 };
