@@ -17,7 +17,7 @@ jobs:
       PROJECT_NAME: ${{ github.event.repository.name }}
       PROJECT_BUILD_PATH: ${{ github.event.repository.name }}/src
       PROJECT_RELEASE_PATH: ${{ github.event.repository.name }}_dev_linux_x64
-      PROJECT_SOURCES: "sinister.c"
+      PROJECT_SOURCES: "stribun.c"
       PROJECT_CUSTOM_FLAGS: ""
 
     steps:

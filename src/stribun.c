@@ -599,7 +599,7 @@ int main(void) {
 #if !defined(_DEBUG)
   SetTraceLogLevel(LOG_NONE);
 #endif
-  InitWindow(screenWidth, screenHeight, "sinister");
+  InitWindow(screenWidth, screenHeight, "stribun");
 
 #if defined(PLATFORM_DESKTOP)
   SetExitKey(KEY_NULL);

@@ -29,7 +29,7 @@
 PLATFORM              ?= PLATFORM_DESKTOP
 
 # Define project variables
-PROJECT_NAME          ?= sinister
+PROJECT_NAME          ?= stribun
 PROJECT_VERSION       ?= 1.0
 PROJECT_BUILD_PATH    ?= .
 
@@ -298,7 +298,7 @@ endif
 
 # Define source code files required
 #------------------------------------------------------------------------------------------------
-PROJECT_SOURCE_FILES ?= sinister.c
+PROJECT_SOURCE_FILES ?= stribun.c
 
 # Define all object files from source files
 OBJS = $(patsubst %.c, %.o, $(PROJECT_SOURCE_FILES))

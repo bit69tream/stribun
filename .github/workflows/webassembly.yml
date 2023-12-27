@@ -17,7 +17,7 @@ jobs:
       PROJECT_NAME: ${{ github.event.repository.name }}
       PROJECT_BUILD_PATH: ${{ github.event.repository.name }}\\src
       PROJECT_RELEASE_PATH: ${{ github.event.repository.name }}_dev_wasm
-      PROJECT_SOURCES: sinister.c
+      PROJECT_SOURCES: stribun.c
       BUILD_WEB_SHELL: minshell.html
 
     steps:
