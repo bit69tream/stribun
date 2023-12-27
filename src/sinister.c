@@ -94,12 +94,13 @@ void UpdateDrawFrame(void) {
                         .y = MOUSE_SENSITIVITY,
                       });
     mouseCursor = Vector2Add(mouseCursor, delta);
+
     mouseCursor =
       Vector2Clamp(mouseCursor,
                    Vector2Zero(),
                    screen);
 
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    if (!IsCursorHidden()) {
       DisableCursor();
     }
   }
@@ -217,12 +218,6 @@ void UpdateDrawFrame(void) {
 }
 
 
-#if defined(PLATFORM_WEB)
-EM_JS(void, aboba, (int x), {
-    console.log(x);
-  });
-#endif
-
 int main(void) {
 #if !defined(_DEBUG)
   SetTraceLogLevel(LOG_NONE);
@@ -233,7 +228,7 @@ int main(void) {
   /* SetWindowState(FLAG_WINDOW_RESIZABLE); */
 #endif
 
-  HideCursor();
+  /* HideCursor(); */
   DisableCursor();
 
   mouseCursor = (Vector2) {
@@ -275,8 +270,6 @@ int main(void) {
   SetShapesTexture(texture, (Rectangle){ 0.0f, 0.0f, 1.0f, 1.0f });
 
 #if defined(PLATFORM_WEB)
-  aboba(GLSL_VERSION);
-
   emscripten_set_main_loop(UpdateDrawFrame, 60, 1);
 #else
   SetTargetFPS(60);
