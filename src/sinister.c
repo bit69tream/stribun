@@ -40,6 +40,8 @@ typedef struct {
   int health;
 } Player;
 
+#define BACKGROUND_PARALLAX_OFFSET 10
+
 static const int screenWidth = 1280;
 static const int screenHeight = 720;
 
@@ -49,6 +51,11 @@ static int stars_time = 0;
 static const Vector2 screen = {
   .x = screenWidth,
   .y = screenHeight,
+};
+
+static const Vector2 background = {
+  .x = screenWidth + (BACKGROUND_PARALLAX_OFFSET * 2),
+  .y = screenHeight + (BACKGROUND_PARALLAX_OFFSET * 2),
 };
 
 static RenderTexture2D target = {0};
@@ -101,6 +108,12 @@ void UpdateDrawFrame(void) {
                  Vector2Zero(),
                  screen);
 
+  float background_x = Lerp(0, BACKGROUND_PARALLAX_OFFSET,
+                            player.position.x / screen.x);
+
+  float background_y = Lerp(0, BACKGROUND_PARALLAX_OFFSET,
+                            player.position.y / screen.y);
+
   BeginTextureMode(target); {
     ClearBackground(BLACK);
 
@@ -116,10 +129,10 @@ void UpdateDrawFrame(void) {
       BeginShaderMode(stars); {
         DrawTexturePro(nebula_noise,
                        (Rectangle) {
-                         .x = 0,
-                         .y = 0,
-                         .width = nebula_noise.width,
-                         .height = nebula_noise.height,
+                         .x = background_x,
+                         .y = background_y,
+                         .width = nebula_noise.width - BACKGROUND_PARALLAX_OFFSET,
+                         .height = nebula_noise.height - BACKGROUND_PARALLAX_OFFSET,
                        },
                        (Rectangle) {
                          .x = 0,
@@ -197,8 +210,10 @@ int main(void) {
 
   time = 0;
 
-  Image n = GenImagePerlinNoise(screenWidth / 4,
-                                screenHeight / 4,
+  #define NEBULAE_NOISE_DOWNSCALE_FACTOR 4
+
+  Image n = GenImagePerlinNoise(background.x / NEBULAE_NOISE_DOWNSCALE_FACTOR,
+                                background.y / NEBULAE_NOISE_DOWNSCALE_FACTOR,
                                 0, 0, 5);
   nebula_noise = LoadTextureFromImage(n);
   SetTextureFilter(nebula_noise, TEXTURE_FILTER_BILINEAR);
@@ -208,11 +223,10 @@ int main(void) {
   stars_time = GetShaderLocation(stars, "time");
   SetShaderValue(stars,
                  GetShaderLocation(stars, "resolution"),
-                 &screen,
+                 &background,
                  SHADER_UNIFORM_VEC2);
 
   target = LoadRenderTexture(screenWidth, screenHeight);
-  /* SetTextureFilter(target.texture, TEXTURE_FILTER_BILINEAR); */
 
   /* fix fragTexCoord for rectangles */
   Texture2D texture = { rlGetTextureIdDefault(), 1, 1, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 };
