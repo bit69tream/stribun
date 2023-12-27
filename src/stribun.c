@@ -484,13 +484,15 @@ void renderMouseCursor(void) {
                  }, 0, WHITE);
 }
 
+#define PROJECTILE_BORDER 3
+
 void renderProjectiles(void) {
   for (int i = 0; i < PROJECTILES_MAX; i++) {
     switch (projectiles[i].type) {
     case PROJECTILE_NONE: break;
     case PROJECTILE_REGULAR: {
       DrawCircleV(projectiles[i].origin, projectiles[i].radius, BLUE);
-      DrawCircleV(projectiles[i].origin, projectiles[i].radius - 1, WHITE);
+      DrawCircleV(projectiles[i].origin, projectiles[i].radius - PROJECTILE_BORDER, WHITE);
     } break;
     case PROJECTILE_SQUARED: {
       Rectangle shape = (Rectangle) {
@@ -502,10 +504,10 @@ void renderProjectiles(void) {
 
       DrawRectangleRec(shape, BLUE);
 
-      shape.x += 1;
-      shape.y += 1;
-      shape.width -= 2;
-      shape.height -= 2;
+      shape.x += PROJECTILE_BORDER;
+      shape.y += PROJECTILE_BORDER;
+      shape.width -= PROJECTILE_BORDER * 2;
+      shape.height -= PROJECTILE_BORDER * 2;
 
       DrawRectangleRec(shape, WHITE);
     } break;
