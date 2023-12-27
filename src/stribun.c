@@ -381,6 +381,8 @@ void renderPlayerTexture(void) {
                    0,
                    WHITE);
 
+    Color a = Fade(WHITE, 0.85f);
+
     if (thrusters & THRUSTERS_BOTTOM) {
       DrawTexturePro(sprites,
                      thrustersRects[THRUSTERS_BOTTOM],
@@ -392,7 +394,7 @@ void renderPlayerTexture(void) {
                      },
                      Vector2Zero(),
                      0,
-                     WHITE);
+                     a);
     }
 
     if (thrusters & THRUSTERS_TOP) {
@@ -406,7 +408,7 @@ void renderPlayerTexture(void) {
                      },
                      Vector2Zero(),
                      0,
-                     WHITE);
+                     a);
     }
 
 
@@ -421,7 +423,7 @@ void renderPlayerTexture(void) {
                      },
                      Vector2Zero(),
                      0,
-                     WHITE);
+                     a);
     }
 
     if (thrusters & THRUSTERS_RIGHT) {
@@ -435,7 +437,7 @@ void renderPlayerTexture(void) {
                      },
                      Vector2Zero(),
                      0,
-                     WHITE);
+                     a);
     }
 
   } EndTextureMode();
