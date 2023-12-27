@@ -28,24 +28,24 @@ float star(vec2 uv, float flare) {
 }
 
 void main() {
-  vec4 noiseColor = texture(texture0, fragTexCoord) * colDiffuse;
+  vec4 noiseColor = texture2D(texture0, fragTexCoord) * colDiffuse;
 
   vec4 nebulaColor = vec4(.325, .271, .51, .3) * noiseColor;
 
-  vec2 uv = vec2(fragTexCoord.x, 1-fragTexCoord.y) - .5;
+  vec2 uv = vec2(fragTexCoord.x, 1.-fragTexCoord.y) - .5;
 
   // make uv follow aspect ratio
   uv = (uv * resolution) / resolution.y;
 
   uv *= 5.;
 
-  float starBrigtness = 0;
+  float starBrigtness = 0.;
 
   vec2 gv = fract(uv) - .5;
   vec2 id = floor(uv);
 
-  for (float y = -1; y <= 1; y += 1) {
-    for (float x = -1; x <= 1; x += 1) {
+  for (float y = -1.; y <= 1.; y += 1.) {
+    for (float x = -1.; x <= 1.; x += 1.) {
       vec2 offset = vec2(x, y);
 
       float n = hash21(id + offset);
