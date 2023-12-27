@@ -217,6 +217,12 @@ void UpdateDrawFrame(void) {
 }
 
 
+#if defined(PLATFORM_WEB)
+EM_JS(void, aboba, (int x), {
+    console.log(x);
+  });
+#endif
+
 int main(void) {
 #if !defined(_DEBUG)
   SetTraceLogLevel(LOG_NONE);
@@ -269,6 +275,8 @@ int main(void) {
   SetShapesTexture(texture, (Rectangle){ 0.0f, 0.0f, 1.0f, 1.0f });
 
 #if defined(PLATFORM_WEB)
+  aboba(GLSL_VERSION);
+
   emscripten_set_main_loop(UpdateDrawFrame, 60, 1);
 #else
   SetTargetFPS(60);
