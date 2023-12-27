@@ -37,7 +37,7 @@ void main() {
   // make uv follow aspect ratio
   uv = (uv * resolution) / resolution.y;
 
-  uv *= 3.;
+  uv *= 5.;
 
   float starBrigtness = 0;
 
