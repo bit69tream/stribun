@@ -20,6 +20,12 @@
 #include <emscripten/emscripten.h>
 #endif
 
+#if defined(PLATFORM_DESKTOP)
+    #define GLSL_VERSION            330
+#else   // PLATFORM_ANDROID, PLATFORM_WEB
+    #define GLSL_VERSION            100
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -242,7 +248,7 @@ int main(void) {
 
   interface = LoadTexture("resources/ui.png");
 
-  stars = LoadShader(NULL, "resources/stars.frag");
+  stars = LoadShader(NULL, TextFormat("resources/stars-%d.frag", GLSL_VERSION));
   starsTime = GetShaderLocation(stars, "time");
   SetShaderValue(stars,
                  GetShaderLocation(stars, "resolution"),
