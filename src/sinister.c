@@ -87,13 +87,15 @@ static float time = 0;
 void UpdateDrawFrame(void) {
   /* update mouse position */
   {
-    Vector2 delta =
-      Vector2Multiply(GetMouseDelta(),
-                      (Vector2) {
-                        .x = MOUSE_SENSITIVITY,
-                        .y = MOUSE_SENSITIVITY,
-                      });
-    mouseCursor = Vector2Add(mouseCursor, delta);
+    if (IsCursorHidden()) {
+      Vector2 delta =
+        Vector2Multiply(GetMouseDelta(),
+                        (Vector2) {
+                          .x = MOUSE_SENSITIVITY,
+                          .y = MOUSE_SENSITIVITY,
+                        });
+      mouseCursor = Vector2Add(mouseCursor, delta);
+    }
 
     mouseCursor =
       Vector2Clamp(mouseCursor,
@@ -225,6 +227,7 @@ int main(void) {
   InitWindow(screenWidth, screenHeight, "sinister");
 
 #if defined(PLATFORM_DESKTOP)
+  SetExitKey(KEY_NULL);
   /* SetWindowState(FLAG_WINDOW_RESIZABLE); */
 #endif
 
