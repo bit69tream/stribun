@@ -41,7 +41,7 @@
 
 #define MAX_PLAYER_HEALTH 100
 
-#define PLAYER_HEATBOX_RADIUS 8
+#define PLAYER_HITBOX_RADIUS 16
 
 typedef struct {
   Vector2 position;
@@ -149,7 +149,7 @@ void updateMouse(void) {
 }
 
 #define PLAYER_FIRE_COOLDOWN 0.1f
-#define PLAYER_PROJECTILE_RADIUS 5
+#define PLAYER_PROJECTILE_RADIUS 9
 #define PLAYER_PROJECTILE_SPEED 7.0f
 
 void tryFiringAShot(void) {
@@ -441,7 +441,7 @@ void renderPlayerTexture(void) {
   } EndTextureMode();
 }
 
-#define PLAYER_SCALE 4
+#define PLAYER_SCALE 3.5
 void renderPlayer(void) {
   DrawTexturePro(playerTexture.texture,
                  (Rectangle) {
@@ -463,7 +463,7 @@ void renderPlayer(void) {
                  playerLookingAngle(),
                  WHITE);
 
-  /* DrawCircleV(player.position, 8, RED); */
+  /* DrawCircleV(player.position, PLAYER_HITBOX_RADIUS, RED); */
 }
 
 #define MOUSE_CURSOR_SCALE 2
