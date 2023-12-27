@@ -81,32 +81,10 @@ static Rectangle mouseCursorRect = {
 };
 
 static Rectangle playerRect = {
-  .x = 1,
-  .y = 17,
-  .width = 23,
-  .height = 23,
-};
-
-#define BOTTOM_FLAME_RECTS_COUNT 3
-static Rectangle bottomFlameRects[BOTTOM_FLAME_RECTS_COUNT] = {
-  [0] = {
-    .x = 0,
-    .y = 41,
-    .width = 6,
-    .height = 9,
-  },
-  [1] = {
-    .x = 7,
-    .y = 41,
-    .width = 6,
-    .height = 9,
-  },
-  [2] = {
-    .x = 14,
-    .y = 41,
-    .width = 6,
-    .height = 9,
-  },
+  .x = 0,
+  .y = 16,
+  .width = 17,
+  .height = 19,
 };
 
 static Vector2 mouseCursor = {0};
@@ -199,28 +177,35 @@ void tryFiringAShot(void) {
 
 #define PLAYER_MOVEMENT_SPEED 3
 
-static bool isPlayerMoving = false;
+typedef enum {
+  DIRECTION_UP    = 0b0001,
+  DIRECTION_DOWN  = 0b0010,
+  DIRECTION_LEFT  = 0b0100,
+  DIRECTION_RIGHT = 0b1000,
+} Direction;
+
+Direction playerMovementDirection = 0;
 
 void updatePlayerPosition(void) {
-  isPlayerMoving = false;
+  playerMovementDirection = 0;
 
   if (IsKeyDown(KEY_E)) {
-    isPlayerMoving = true;
+    playerMovementDirection |= DIRECTION_UP;
     player.position.y -= PLAYER_MOVEMENT_SPEED;
   }
 
   if (IsKeyDown(KEY_S)) {
-    isPlayerMoving = true;
+    playerMovementDirection |= DIRECTION_LEFT;
     player.position.x -= PLAYER_MOVEMENT_SPEED;
   }
 
   if (IsKeyDown(KEY_D)) {
-    isPlayerMoving = true;
+    playerMovementDirection |= DIRECTION_DOWN;
     player.position.y += PLAYER_MOVEMENT_SPEED;
   }
 
   if (IsKeyDown(KEY_F)) {
-    isPlayerMoving = true;
+    playerMovementDirection |= DIRECTION_RIGHT;
     player.position.x += PLAYER_MOVEMENT_SPEED;
   }
 
@@ -268,9 +253,118 @@ void renderBackground(void) {
 
 static RenderTexture2D playerTexture = {0};
 
+#define THRUSTERS_BOTTOM 0b0001
+#define THRUSTERS_TOP    0b0010
+#define THRUSTERS_RIGHT  0b0100
+#define THRUSTERS_LEFT   0b1000
+
+static Rectangle thrustersRects[] = {
+  [THRUSTERS_BOTTOM] = {
+    .x = 17,
+    .y = 30,
+    .width = 17,
+    .height = 4,
+  },
+
+  [THRUSTERS_TOP] = {
+    .x = 17,
+    .y = 16,
+    .width = 17,
+    .height = 4,
+  },
+
+  [THRUSTERS_LEFT] = {
+    .x = 17,
+    .y = 16,
+    .width = 3,
+    .height = 18,
+  },
+
+  [THRUSTERS_RIGHT] = {
+    .x = 31,
+    .y = 16,
+    .width = 3,
+    .height = 18,
+  },
+};
+
+float playerLookingAngle(void) {
+  static const Vector2 up = {
+    .x = 0,
+    .y = -1,
+  };
+
+  float angle = Vector2Angle(up, lookingDirection) * RAD2DEG;
+
+  return angle;
+}
+
+int whichThrustersToUse(void) {
+  float angle = playerLookingAngle();
+
+  /* angle from playerLookingAngle() function is inside of the (-180; 180) range */
+
+  if (angle < 0.0f) {
+    angle = 360.0f + angle;
+  }
+
+  angle = Clamp(angle, 0.0f, 360.0f);
+
+  angle += 45.0f;
+
+  if (angle >= 360.0f) {
+    angle = angle - 360.0f;
+  }
+
+  Direction facing = 0;
+
+  if (angle >= 0.0f && angle <= 90.0f) {
+    facing = DIRECTION_UP;
+  } else if (angle >= 90.0f && angle <= 180.0f) {
+    facing = DIRECTION_RIGHT;
+  } else if (angle >= 180.0f && angle <= 270.0f) {
+    facing = DIRECTION_DOWN;
+  } else {
+    facing = DIRECTION_LEFT;
+  }
+
+  int thrusters = 0;
+
+#define THRUST_RULES                            \
+  do {                                          \
+    X(UP, UP, BOTTOM);                          \
+    X(UP, LEFT, RIGHT);                         \
+    X(UP, DOWN, TOP);                           \
+    X(UP, RIGHT, LEFT);                         \
+                                                \
+    X(LEFT, UP, LEFT);                          \
+    X(LEFT, LEFT, BOTTOM);                      \
+    X(LEFT, DOWN, RIGHT);                       \
+    X(LEFT, RIGHT, TOP);                        \
+                                                \
+    X(DOWN, UP, TOP);                           \
+    X(DOWN, LEFT, LEFT);                        \
+    X(DOWN, DOWN, BOTTOM);                      \
+    X(DOWN, RIGHT, RIGHT);                      \
+                                                \
+    X(RIGHT, UP, RIGHT);                        \
+    X(RIGHT, LEFT, TOP);                        \
+    X(RIGHT, DOWN, LEFT);                       \
+    X(RIGHT, RIGHT, BOTTOM);                    \
+  } while (0)
+
+#define X(f, m, t) if (facing == DIRECTION_##f && playerMovementDirection & DIRECTION_##m) thrusters |= THRUSTERS_##t
+
+  THRUST_RULES;
+
+#undef X
+#undef THRUST_RULES
+
+  return thrusters;
+}
+
 void renderPlayerTexture(void) {
-  int leftFlame = GetRandomValue(0, BOTTOM_FLAME_RECTS_COUNT - 1);
-  int rightFlame = GetRandomValue(0, BOTTOM_FLAME_RECTS_COUNT - 1);
+  int thrusters = whichThrustersToUse();
 
   BeginTextureMode(playerTexture); {
     ClearBackground(BLANK);
@@ -287,45 +381,68 @@ void renderPlayerTexture(void) {
                    0,
                    WHITE);
 
-    if (isPlayerMoving) {
-      Color a = Fade(WHITE, 0.9);
-
+    if (thrusters & THRUSTERS_BOTTOM) {
       DrawTexturePro(sprites,
-                     bottomFlameRects[leftFlame],
+                     thrustersRects[THRUSTERS_BOTTOM],
                      (Rectangle) {
-                       .x = 3,
-                       .y = playerRect.height,
-                       .width = bottomFlameRects[leftFlame].width,
-                       .height = bottomFlameRects[leftFlame].height,
+                       .x = 0,
+                       .y = 14,
+                       .width = thrustersRects[THRUSTERS_BOTTOM].width,
+                       .height = thrustersRects[THRUSTERS_BOTTOM].height,
                      },
                      Vector2Zero(),
                      0,
-                     a);
+                     WHITE);
+    }
 
+    if (thrusters & THRUSTERS_TOP) {
       DrawTexturePro(sprites,
-                     bottomFlameRects[rightFlame],
+                     thrustersRects[THRUSTERS_TOP],
+                     (Rectangle) {
+                       .x = 0,
+                       .y = 0,
+                       .width = thrustersRects[THRUSTERS_TOP].width,
+                       .height = thrustersRects[THRUSTERS_TOP].height,
+                     },
+                     Vector2Zero(),
+                     0,
+                     WHITE);
+    }
+
+
+    if (thrusters & THRUSTERS_LEFT) {
+      DrawTexturePro(sprites,
+                     thrustersRects[THRUSTERS_LEFT],
+                     (Rectangle) {
+                       .x = 0,
+                       .y = 0,
+                       .width = thrustersRects[THRUSTERS_LEFT].width,
+                       .height = thrustersRects[THRUSTERS_LEFT].height,
+                     },
+                     Vector2Zero(),
+                     0,
+                     WHITE);
+    }
+
+    if (thrusters & THRUSTERS_RIGHT) {
+      DrawTexturePro(sprites,
+                     thrustersRects[THRUSTERS_RIGHT],
                      (Rectangle) {
                        .x = 14,
-                       .y = playerRect.height,
-                       .width = bottomFlameRects[rightFlame].width,
-                       .height = bottomFlameRects[rightFlame].height,
+                       .y = 0,
+                       .width = thrustersRects[THRUSTERS_RIGHT].width,
+                       .height = thrustersRects[THRUSTERS_RIGHT].height,
                      },
                      Vector2Zero(),
                      0,
-                     a);
+                     WHITE);
     }
+
   } EndTextureMode();
 }
 
-#define PLAYER_SCALE 2
+#define PLAYER_SCALE 4
 void renderPlayer(void) {
-  Vector2 up = {
-    .x = 0,
-    .y = -1,
-  };
-
-  float angle = Vector2Angle(up, lookingDirection) * RAD2DEG;
-
   DrawTexturePro(playerTexture.texture,
                  (Rectangle) {
                    .x = 0,
@@ -343,7 +460,7 @@ void renderPlayer(void) {
                    .x = (playerRect.width * PLAYER_SCALE) / 2,
                    .y = (playerRect.height * PLAYER_SCALE) / 2,
                  },
-                 angle,
+                 playerLookingAngle(),
                  WHITE);
 
   /* DrawCircleV(player.position, 8, RED); */
@@ -527,7 +644,7 @@ int main(void) {
 
   target = LoadRenderTexture(screenWidth, screenHeight);
 
-  playerTexture = LoadRenderTexture(playerRect.width, playerRect.height + 6);
+  playerTexture = LoadRenderTexture(playerRect.width, playerRect.height);
 
   /* fix fragTexCoord for rectangles */
   Texture2D t = { rlGetTextureIdDefault(), 1, 1, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 };
