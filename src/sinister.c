@@ -98,30 +98,37 @@ void UpdateDrawFrame(void) {
       Vector2Clamp(mouseCursor,
                    Vector2Zero(),
                    screen);
+
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      DisableCursor();
+    }
   }
 
   #define PLAYER_MOVEMENT_SPEED 3
 
-  if (IsKeyDown(KEY_E)) {
-    player.position.y -= PLAYER_MOVEMENT_SPEED;
-  }
+  {
+    if (IsKeyDown(KEY_E)) {
+      player.position.y -= PLAYER_MOVEMENT_SPEED;
+    }
 
-  if (IsKeyDown(KEY_S)) {
-    player.position.x -= PLAYER_MOVEMENT_SPEED;
-  }
+    if (IsKeyDown(KEY_S)) {
+      player.position.x -= PLAYER_MOVEMENT_SPEED;
+    }
 
-  if (IsKeyDown(KEY_D)) {
-    player.position.y += PLAYER_MOVEMENT_SPEED;
-  }
+    if (IsKeyDown(KEY_D)) {
+      player.position.y += PLAYER_MOVEMENT_SPEED;
+    }
 
-  if (IsKeyDown(KEY_F)) {
-    player.position.x += PLAYER_MOVEMENT_SPEED;
-  }
+    if (IsKeyDown(KEY_F)) {
+      player.position.x += PLAYER_MOVEMENT_SPEED;
+    }
 
-  player.position =
-    Vector2Clamp(player.position,
-                 Vector2Zero(),
-                 screen);
+    player.position =
+      Vector2Clamp(player.position,
+                   Vector2Zero(),
+                   screen);
+
+  }
 
   float background_x = Lerp(0, BACKGROUND_PARALLAX_OFFSET,
                             player.position.x / screen.x);
