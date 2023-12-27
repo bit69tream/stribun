@@ -235,7 +235,7 @@ int main(void) {
 
   Image n = GenImagePerlinNoise(background.x / NEBULAE_NOISE_DOWNSCALE_FACTOR,
                                 background.y / NEBULAE_NOISE_DOWNSCALE_FACTOR,
-                                0, 0, 5);
+                                0, 0, 2);
   nebulaNoise = LoadTextureFromImage(n);
   SetTextureFilter(nebulaNoise, TEXTURE_FILTER_BILINEAR);
   UnloadImage(n);
