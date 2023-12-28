@@ -691,7 +691,7 @@ int main(void) {
 
 #if defined(PLATFORM_DESKTOP)
   SetExitKey(KEY_NULL);
-  SetWindowState(FLAG_WINDOW_RESIZABLE);
+  SetWindowState(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_MAXIMIZED | FLAG_BORDERLESS_WINDOWED_MODE);
 #endif
 
   DisableCursor();
