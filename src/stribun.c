@@ -67,6 +67,8 @@ typedef struct {
 
   float dashReactivationEffectAlpha;
   Vector2 dashDelta;
+
+  bool isInvincible;
 } Player;
 
 #define BACKGROUND_PARALLAX_OFFSET 10
@@ -178,6 +180,7 @@ void tryDashing(void) {
 
   player.dashCooldown = PLAYER_DASH_COOLDOWN;
   player.dashDelta = Vector2Scale(player.movementDelta, PLAYER_DASH_DISTANCE);
+  player.isInvincible = true;
 }
 
 #define PLAYER_FIRE_COOLDOWN 0.1f
@@ -244,9 +247,8 @@ void updatePlayerPosition(void) {
                             0.0f,
                             DASH_DELTA_LERP_RATE);
 
-  if (player.dashDelta.x != 0.0f ||
-      player.dashDelta.y != 0.0f)
-    printf("%f %f\n", player.dashDelta.x, player.dashDelta.y);
+  player.isInvincible = (roundf(player.dashDelta.x) != 0.0f ||
+                         roundf(player.dashDelta.y) != 0.0f);
 
   player.position =
     Vector2Add(player.position,
@@ -551,7 +553,8 @@ void renderPlayer(void) {
                  playerLookingAngle(),
                  WHITE);
 
-  /* DrawCircleV(player.position, PLAYER_HITBOX_RADIUS, RED); */
+  if (player.isInvincible)
+    DrawCircleV(player.position, PLAYER_HITBOX_RADIUS, RED);
 }
 
 void renderThrusterTrails(void) {
@@ -770,6 +773,7 @@ int main(void) {
       .x = screenWidth / 2,
       .y = screenHeight - (screenHeight / 6),
     },
+    .isInvincible = false,
   };
 
   memset(projectiles, 0, sizeof(projectiles));
