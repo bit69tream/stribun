@@ -79,14 +79,19 @@ static const int screenHeight = 720;
 static Shader stars = {0};
 static int starsTime = 0;
 
-static const Vector2 screen = {
-  .x = screenWidth,
-  .y = screenHeight,
+static Camera2D camera = {0};
+
+#define LEVEL_WIDTH 2048
+#define LEVEL_HEIGHT 2048
+
+static const Vector2 level = {
+  .x = LEVEL_WIDTH,
+  .y = LEVEL_HEIGHT,
 };
 
 static const Vector2 background = {
-  .x = screenWidth + (BACKGROUND_PARALLAX_OFFSET * 2),
-  .y = screenHeight + (BACKGROUND_PARALLAX_OFFSET * 2),
+  .x = LEVEL_WIDTH + (BACKGROUND_PARALLAX_OFFSET * 2),
+  .y = LEVEL_HEIGHT + (BACKGROUND_PARALLAX_OFFSET * 2),
 };
 
 static RenderTexture2D target = {0};
@@ -147,6 +152,8 @@ Projectile *push_projectile(void) {
 
 static Vector2 lookingDirection = {0};
 
+static Vector2 screenMouseLocation = {0};
+
 void updateMouse(void) {
   if (IsCursorHidden()) {
     Vector2 delta =
@@ -155,13 +162,18 @@ void updateMouse(void) {
                         .x = MOUSE_SENSITIVITY,
                         .y = MOUSE_SENSITIVITY,
                       });
-    mouseCursor = Vector2Add(mouseCursor, delta);
+    screenMouseLocation = Vector2Add(screenMouseLocation, delta);
+
+    screenMouseLocation.x = Clamp(screenMouseLocation.x,
+                                  0.0f,
+                                  GetScreenWidth());
+
+    screenMouseLocation.y = Clamp(screenMouseLocation.y,
+                                  0.0f,
+                                  GetScreenHeight());
   }
 
-  mouseCursor =
-    Vector2Clamp(mouseCursor,
-                 Vector2Zero(),
-                 screen);
+  mouseCursor = GetScreenToWorld2D(screenMouseLocation, camera);
 
   if (!IsCursorHidden()) {
     DisableCursor();
@@ -257,21 +269,21 @@ void updatePlayerPosition(void) {
   player.position =
     Vector2Clamp(player.position,
                  Vector2Zero(),
-                 screen);
+                 level);
 }
 
 void renderBackground(void) {
   float background_x = Lerp(0, BACKGROUND_PARALLAX_OFFSET,
-                            player.position.x / screen.x);
+                            player.position.x / LEVEL_WIDTH);
 
   float background_y = Lerp(0, BACKGROUND_PARALLAX_OFFSET,
-                            player.position.y / screen.y);
+                            player.position.y / LEVEL_HEIGHT);
 
   SetShaderValue(stars, starsTime, &time, SHADER_UNIFORM_FLOAT);
 
   BeginBlendMode(BLEND_ALPHA); {
     DrawRectangle(0, 0,
-                  screenWidth, screenHeight,
+                  LEVEL_WIDTH, LEVEL_HEIGHT,
                   CLITERAL(Color) {
                     19, 14, 35, 204
                   });
@@ -286,8 +298,8 @@ void renderBackground(void) {
                      (Rectangle) {
                        .x = 0,
                        .y = 0,
-                       .width = screen.x,
-                       .height = screen.y,
+                       .width = LEVEL_WIDTH,
+                       .height = LEVEL_HEIGHT,
                      },
                      Vector2Zero(),
                      0,
@@ -666,25 +678,24 @@ void renderFinal(void) {
     float width = (float)target.texture.width;
     float height = (float)target.texture.height;
 
-    float finalHeight = MAX((float)GetScreenHeight(), height);
-    float finalWidth = finalHeight * (width / height);
-
-    DrawTexturePro(target.texture,
-                   (Rectangle) {
-                     .x = 0,
-                     .y = 0,
-                     .width = width,
-                     .height = -height
-                   },
-                   (Rectangle) {
-                     .x = (float)GetScreenWidth() / 2,
-                     .y = (float)GetScreenHeight() / 2,
-                     .width = finalWidth,
-                     .height = finalHeight,
-                   },
-                   (Vector2) { finalWidth / 2, finalHeight / 2 },
-                   0.0f,
-                   WHITE);
+    BeginMode2D(camera); {
+      DrawTexturePro(target.texture,
+                     (Rectangle) {
+                       .x = 0,
+                       .y = 0,
+                       .width = width,
+                       .height = -height
+                     },
+                     (Rectangle) {
+                       .x = 0,
+                       .y = 0,
+                       .width = width,
+                       .height = height
+                     },
+                     Vector2Zero(),
+                     0.0f,
+                     WHITE);
+    }; EndMode2D();
 
     DrawFPS(0, 0);
   } EndDrawing();
@@ -692,10 +703,10 @@ void renderFinal(void) {
 
 void updateProjectiles(void) {
   Rectangle legalArea = {
-    .x = -(screen.x / 2),
-    .y = -(screen.y / 2),
-    .width = screen.x * 2,
-    .height = screen.y * 2,
+    .x = -(LEVEL_WIDTH / 2),
+    .y = -(LEVEL_HEIGHT / 2),
+    .width = LEVEL_WIDTH * 2,
+    .height = LEVEL_HEIGHT * 2,
   };
 
   for (int i = 0; i < PROJECTILES_MAX; i++) {
@@ -731,7 +742,25 @@ void updatePlayerCooldowns(void) {
   }
 }
 
+void updateCamera(void) {
+  float screenWidth = GetScreenWidth();
+  float screenHeight = GetScreenHeight();
+
+  float target_x = Clamp(player.position.x, screenWidth / 2,
+                         (float)LEVEL_WIDTH - (screenWidth / 2));
+  float target_y = Clamp(player.position.y, screenHeight / 2,
+                         (float)LEVEL_HEIGHT - (screenHeight / 2));
+
+  camera.target.x = Lerp(camera.target.x, target_x, 0.1f);
+  camera.target.y = Lerp(camera.target.y, target_y, 0.1f);
+
+  camera.offset.x = (float)GetScreenWidth() / 2.0f;
+  camera.offset.y = (float)GetScreenHeight() / 2.0f;
+}
+
 void UpdateDrawFrame(void) {
+  updateCamera();
+
   updateProjectiles();
   updateThrusterTrails();
 
@@ -761,17 +790,20 @@ int main(void) {
 
   DisableCursor();
 
-  mouseCursor = (Vector2) {
+  screenMouseLocation = (Vector2) {
     .x = screenWidth / 2,
     .y = (screenHeight / 6),
   };
 
   memset(&player, 0, sizeof(player));
 
+  camera.rotation = 0;
+  camera.zoom = 1;
+
   player = (Player) {
     .position = (Vector2) {
-      .x = screenWidth / 2,
-      .y = screenHeight - (screenHeight / 6),
+      .x = LEVEL_WIDTH / 2,
+      .y = LEVEL_HEIGHT - (LEVEL_HEIGHT / 6),
     },
     .isInvincible = false,
   };
@@ -798,7 +830,7 @@ int main(void) {
                  &background,
                  SHADER_UNIFORM_VEC2);
 
-  target = LoadRenderTexture(screenWidth, screenHeight);
+  target = LoadRenderTexture(LEVEL_WIDTH, LEVEL_HEIGHT);
 
   playerTexture = LoadRenderTexture(playerRect.width, playerRect.height);
 
