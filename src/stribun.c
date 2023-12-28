@@ -282,11 +282,7 @@ void renderBackground(void) {
   SetShaderValue(stars, starsTime, &time, SHADER_UNIFORM_FLOAT);
 
   BeginBlendMode(BLEND_ALPHA); {
-    DrawRectangle(0, 0,
-                  LEVEL_WIDTH, LEVEL_HEIGHT,
-                  CLITERAL(Color) {
-                    19, 14, 35, 204
-                  });
+    ClearBackground(BLACK);
     BeginShaderMode(stars); {
       DrawTexturePro(nebulaNoise,
                      (Rectangle) {
@@ -812,11 +808,11 @@ int main(void) {
 
   time = 0;
 
-  #define NEBULAE_NOISE_DOWNSCALE_FACTOR 4
+  #define NEBULAE_NOISE_DOWNSCALE_FACTOR 8
 
   Image n = GenImagePerlinNoise(background.x / NEBULAE_NOISE_DOWNSCALE_FACTOR,
                                 background.y / NEBULAE_NOISE_DOWNSCALE_FACTOR,
-                                0, 0, 2);
+                                0, 0, 4);
   nebulaNoise = LoadTextureFromImage(n);
   SetTextureFilter(nebulaNoise, TEXTURE_FILTER_BILINEAR);
   UnloadImage(n);
