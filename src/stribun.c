@@ -39,14 +39,34 @@
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
+typedef enum {
+  DIRECTION_UP    = 0b0001,
+  DIRECTION_DOWN  = 0b0010,
+  DIRECTION_LEFT  = 0b0100,
+  DIRECTION_RIGHT = 0b1000,
+} Direction;
+
 #define MAX_PLAYER_HEALTH 100
 
 #define PLAYER_HITBOX_RADIUS 16
 
+#define PLAYER_DASH_COOLDOWN 0.6f
+
+#define PLAYER_MOVEMENT_SPEED 3
+
 typedef struct {
   Vector2 position;
+
   int health;
+
   float fireCooldown;
+  float dashCooldown;
+
+  Direction movementDirection;
+  Vector2 movementDelta;
+
+  float dashReactivationEffectAlpha;
+  Vector2 dashDelta;
 } Player;
 
 #define BACKGROUND_PARALLAX_OFFSET 10
@@ -148,6 +168,18 @@ void updateMouse(void) {
   lookingDirection = Vector2Normalize(Vector2Subtract(mouseCursor, player.position));
 }
 
+#define PLAYER_DASH_DISTANCE 50
+
+void tryDashing(void) {
+  if (!IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) ||
+      player.dashCooldown > 0.0f) {
+    return;
+  }
+
+  player.dashCooldown = PLAYER_DASH_COOLDOWN;
+  player.dashDelta = Vector2Scale(player.movementDelta, PLAYER_DASH_DISTANCE);
+}
+
 #define PLAYER_FIRE_COOLDOWN 0.1f
 #define PLAYER_PROJECTILE_RADIUS 9
 #define PLAYER_PROJECTILE_SPEED 7.0f
@@ -175,39 +207,50 @@ void tryFiringAShot(void) {
   player.fireCooldown = PLAYER_FIRE_COOLDOWN;
 }
 
-#define PLAYER_MOVEMENT_SPEED 3
-
-typedef enum {
-  DIRECTION_UP    = 0b0001,
-  DIRECTION_DOWN  = 0b0010,
-  DIRECTION_LEFT  = 0b0100,
-  DIRECTION_RIGHT = 0b1000,
-} Direction;
-
-Direction playerMovementDirection = 0;
-
 void updatePlayerPosition(void) {
-  playerMovementDirection = 0;
+  player.movementDirection = 0;
+  player.movementDelta = Vector2Zero();
 
   if (IsKeyDown(KEY_E)) {
-    playerMovementDirection |= DIRECTION_UP;
-    player.position.y -= PLAYER_MOVEMENT_SPEED;
+    player.movementDirection |= DIRECTION_UP;
+    player.movementDelta.y -= PLAYER_MOVEMENT_SPEED;
   }
 
   if (IsKeyDown(KEY_S)) {
-    playerMovementDirection |= DIRECTION_LEFT;
-    player.position.x -= PLAYER_MOVEMENT_SPEED;
+    player.movementDirection |= DIRECTION_LEFT;
+    player.movementDelta.x -= PLAYER_MOVEMENT_SPEED;
   }
 
   if (IsKeyDown(KEY_D)) {
-    playerMovementDirection |= DIRECTION_DOWN;
-    player.position.y += PLAYER_MOVEMENT_SPEED;
+    player.movementDirection |= DIRECTION_DOWN;
+    player.movementDelta.y += PLAYER_MOVEMENT_SPEED;
   }
 
   if (IsKeyDown(KEY_F)) {
-    playerMovementDirection |= DIRECTION_RIGHT;
-    player.position.x += PLAYER_MOVEMENT_SPEED;
+    player.movementDirection |= DIRECTION_RIGHT;
+    player.movementDelta.x += PLAYER_MOVEMENT_SPEED;
   }
+
+  player.position =
+    Vector2Add(player.position,
+               player.movementDelta);
+
+#define DASH_DELTA_LERP_RATE 0.5f
+  player.dashDelta.x = Lerp(player.dashDelta.x,
+                            0.0f,
+                            DASH_DELTA_LERP_RATE);
+
+  player.dashDelta.y = Lerp(player.dashDelta.y,
+                            0.0f,
+                            DASH_DELTA_LERP_RATE);
+
+  if (player.dashDelta.x != 0.0f ||
+      player.dashDelta.y != 0.0f)
+    printf("%f %f\n", player.dashDelta.x, player.dashDelta.y);
+
+  player.position =
+    Vector2Add(player.position,
+               player.dashDelta);
 
   player.position =
     Vector2Clamp(player.position,
@@ -353,7 +396,7 @@ int whichThrustersToUse(void) {
     X(RIGHT, RIGHT, BOTTOM);                    \
   } while (0)
 
-#define X(f, m, t) if (facing == DIRECTION_##f && playerMovementDirection & DIRECTION_##m) thrusters |= THRUSTERS_##t
+#define X(f, m, t) if (facing == DIRECTION_##f && player.movementDirection & DIRECTION_##m) thrusters |= THRUSTERS_##t
 
   THRUST_RULES;
 
@@ -666,15 +709,34 @@ void updateProjectiles(void) {
   }
 }
 
+void updatePlayerCooldowns(void) {
+  float frameTime = GetFrameTime();
+
+  bool dashCooldownActive = player.dashCooldown > 0.0f;
+
+#define COOLDOWN_MAX 10.0f
+#define DECREASE_COOLDOWN(c) (c) = Clamp((c) - frameTime, 0.0f, COOLDOWN_MAX)
+
+  DECREASE_COOLDOWN(player.fireCooldown);
+  DECREASE_COOLDOWN(player.dashCooldown);
+  DECREASE_COOLDOWN(player.dashReactivationEffectAlpha);
+
+#undef DECREASE_COOLDOWN
+
+  if (player.dashCooldown <= 0.0f && dashCooldownActive) {
+    player.dashReactivationEffectAlpha = 1.0f;
+  }
+}
+
 void UpdateDrawFrame(void) {
   updateProjectiles();
   updateThrusterTrails();
 
   updateMouse();
   updatePlayerPosition();
+  updatePlayerCooldowns();
 
-  player.fireCooldown -= GetFrameTime();
-
+  tryDashing();
   tryFiringAShot();
 
   renderPhase1();
@@ -700,6 +762,8 @@ int main(void) {
     .x = screenWidth / 2,
     .y = (screenHeight / 6),
   };
+
+  memset(&player, 0, sizeof(player));
 
   player = (Player) {
     .position = (Vector2) {
