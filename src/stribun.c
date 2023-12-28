@@ -170,7 +170,7 @@ void updateMouse(void) {
   lookingDirection = Vector2Normalize(Vector2Subtract(mouseCursor, player.position));
 }
 
-#define PLAYER_DASH_DISTANCE 50
+#define PLAYER_DASH_DISTANCE 35
 
 void tryDashing(void) {
   if (!IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) ||
