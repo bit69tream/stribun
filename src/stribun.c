@@ -50,7 +50,7 @@ typedef enum {
 
 #define PLAYER_HITBOX_RADIUS 16
 
-#define PLAYER_DASH_COOLDOWN 0.6f
+#define PLAYER_DASH_COOLDOWN 0.5f
 
 #define PLAYER_MOVEMENT_SPEED 3
 
@@ -182,7 +182,7 @@ void updateMouse(void) {
   lookingDirection = Vector2Normalize(Vector2Subtract(mouseCursor, player.position));
 }
 
-#define PLAYER_DASH_DISTANCE 35
+#define PLAYER_DASH_DISTANCE 128
 
 void tryDashing(void) {
   if (!IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) ||
@@ -190,8 +190,23 @@ void tryDashing(void) {
     return;
   }
 
+  Vector2 direction = Vector2Normalize(player.movementDelta);
+
+  if (direction.x == 0.0f && direction.y == 0.0f) {
+    return;
+  }
+
+  static const Vector2 up = {
+    .x = 0,
+    .y = -1,
+  };
+
+  float dashAngle = Vector2Angle(up, direction);
+
+  Vector2 dashDistance = Vector2Scale(up, PLAYER_DASH_DISTANCE);
+
   player.dashCooldown = PLAYER_DASH_COOLDOWN;
-  player.dashDelta = Vector2Scale(player.movementDelta, PLAYER_DASH_DISTANCE);
+  player.dashDelta = Vector2Rotate(dashDistance, dashAngle);
   player.isInvincible = true;
 }
 
@@ -497,23 +512,33 @@ ThrusterTrail *pushThrusterTrail() {
   return NULL;
 }
 
+static Shader dashResetShader = {0};
+static int dashResetShaderAlpha = 0;
+
 void renderPlayerTexture(void) {
   int thrusters = whichThrustersToUse();
 
   BeginTextureMode(playerTexture); {
     ClearBackground(BLANK);
 
-    DrawTexturePro(sprites,
-                   playerRect,
-                   (Rectangle) {
-                     .x = 0,
-                     .y = 0,
-                     .width = playerRect.width,
-                     .height = playerRect.height,
-                   },
-                   Vector2Zero(),
-                   0,
-                   WHITE);
+    SetShaderValue(dashResetShader,
+                   dashResetShaderAlpha,
+                   &player.dashReactivationEffectAlpha,
+                   SHADER_UNIFORM_FLOAT);
+
+    BeginShaderMode(dashResetShader); {
+      DrawTexturePro(sprites,
+                     playerRect,
+                     (Rectangle) {
+                       .x = 0,
+                       .y = 0,
+                       .width = playerRect.width,
+                       .height = playerRect.height,
+                     },
+                     Vector2Zero(),
+                     0,
+                     WHITE);
+    } EndShaderMode();
 
     renderThrusters(thrusters);
   } EndTextureMode();
@@ -729,6 +754,8 @@ void updatePlayerCooldowns(void) {
 
   DECREASE_COOLDOWN(player.fireCooldown);
   DECREASE_COOLDOWN(player.dashCooldown);
+
+  frameTime *= 6;
   DECREASE_COOLDOWN(player.dashReactivationEffectAlpha);
 
 #undef DECREASE_COOLDOWN
@@ -818,6 +845,15 @@ int main(void) {
   UnloadImage(n);
 
   sprites = LoadTexture("resources/sprites.png");
+
+  Vector4 dashResetGlowColor = ColorNormalize(ColorAlpha(SKYBLUE, 0.1f));
+
+  dashResetShader = LoadShader(NULL, TextFormat("resources/dash-reset-glow-%d.frag", GLSL_VERSION));
+  dashResetShaderAlpha = GetShaderLocation(dashResetShader, "alpha");
+  SetShaderValue(dashResetShader,
+                 GetShaderLocation(dashResetShader, "glowColor"),
+                 &dashResetGlowColor,
+                 SHADER_UNIFORM_VEC4);
 
   stars = LoadShader(NULL, TextFormat("resources/stars-%d.frag", GLSL_VERSION));
   starsTime = GetShaderLocation(stars, "time");
