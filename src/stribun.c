@@ -593,8 +593,8 @@ void renderPlayer(void) {
                  playerLookingAngle(),
                  WHITE);
 
-  if (player.isInvincible)
-    DrawCircleV(player.position, PLAYER_HITBOX_RADIUS, RED);
+  /* if (player.isInvincible) */
+  /*   DrawCircleV(player.position, PLAYER_HITBOX_RADIUS, RED); */
 }
 
 void renderThrusterTrails(void) {
