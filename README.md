@@ -19,7 +19,7 @@ _TODO: Show your game to the world, animated GIFs recommended!._
 
 ### Developers
 
- - bit69tream - Everything 🕶
+ - bit69tream - Everything 😎
 
 ### Links
 
