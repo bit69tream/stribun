@@ -119,6 +119,9 @@ static Player player = {0};
 
 static float time = 0;
 
+static Sound dashSoundEffect = {0};
+static Sound playerShot = {0};
+
 typedef enum {
   PROJECTILE_NONE,
   PROJECTILE_REGULAR,
@@ -208,9 +211,11 @@ void tryDashing(void) {
   player.dashCooldown = PLAYER_DASH_COOLDOWN;
   player.dashDelta = Vector2Rotate(dashDistance, dashAngle);
   player.isInvincible = true;
+
+  PlaySound(dashSoundEffect);
 }
 
-#define PLAYER_FIRE_COOLDOWN 0.1f
+#define PLAYER_FIRE_COOLDOWN 0.15f
 #define PLAYER_PROJECTILE_RADIUS 9
 #define PLAYER_PROJECTILE_SPEED 7.0f
 
@@ -235,6 +240,8 @@ void tryFiringAShot(void) {
   };
 
   player.fireCooldown = PLAYER_FIRE_COOLDOWN;
+
+  PlaySound(playerShot);
 }
 
 void updatePlayerPosition(void) {
@@ -805,6 +812,7 @@ int main(void) {
   SetTraceLogLevel(LOG_NONE);
 #endif
   InitWindow(screenWidth, screenHeight, "stribun");
+  InitAudioDevice();
 
 #if defined(PLATFORM_DESKTOP)
   SetExitKey(KEY_NULL);
@@ -834,6 +842,12 @@ int main(void) {
   memset(projectiles, 0, sizeof(projectiles));
 
   time = 0;
+
+  dashSoundEffect = LoadSound("resources/dash.wav");
+  SetSoundVolume(dashSoundEffect, 0.3);
+
+  playerShot = LoadSound("resources/shot01.wav");
+  SetSoundVolume(playerShot, 0.2);
 
   #define NEBULAE_NOISE_DOWNSCALE_FACTOR 8
 
