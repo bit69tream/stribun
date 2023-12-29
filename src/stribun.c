@@ -52,7 +52,7 @@ typedef enum {
 
 #define PLAYER_DASH_COOLDOWN 0.5f
 
-#define PLAYER_MOVEMENT_SPEED 3
+#define PLAYER_MOVEMENT_SPEED 6
 
 typedef struct {
   Vector2 position;
