@@ -755,13 +755,13 @@ void updatePlayerCooldowns(void) {
   DECREASE_COOLDOWN(player.fireCooldown);
   DECREASE_COOLDOWN(player.dashCooldown);
 
-  frameTime *= 6;
+  frameTime *= 2;
   DECREASE_COOLDOWN(player.dashReactivationEffectAlpha);
 
 #undef DECREASE_COOLDOWN
 
   if (player.dashCooldown <= 0.0f && dashCooldownActive) {
-    player.dashReactivationEffectAlpha = 1.0f;
+    player.dashReactivationEffectAlpha = 0.5f;
   }
 }
 
