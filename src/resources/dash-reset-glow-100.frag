@@ -1,5 +1,7 @@
 #version 100
 
+precision mediump float;
+
 varying vec2 fragTexCoord;
 
 uniform float alpha;
