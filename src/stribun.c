@@ -859,8 +859,8 @@ int main(void) {
   DisableCursor();
 
   screenMouseLocation = (Vector2) {
-    .x = screenWidth / 2,
-    .y = (screenHeight / 6),
+    .x = (float)screenWidth / 2,
+    .y = ((float)screenHeight / 6),
   };
 
   memset(&player, 0, sizeof(player));
@@ -870,8 +870,8 @@ int main(void) {
 
   player = (Player) {
     .position = (Vector2) {
-      .x = LEVEL_WIDTH / 2,
-      .y = LEVEL_HEIGHT - (LEVEL_HEIGHT / 6),
+      .x = (float)LEVEL_WIDTH / 2,
+      .y = LEVEL_HEIGHT - ((float)LEVEL_HEIGHT / 6),
     },
     .isInvincible = false,
   };
