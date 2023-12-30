@@ -727,23 +727,27 @@ void renderFinal(void) {
     float height = (float)target.texture.height;
 
     BeginMode2D(camera); {
+      DrawTexturePro(target.texture,
+                     (Rectangle) {
+                       .x = 0,
+                       .y = 0,
+                       .width = width,
+                       .height = -height
+                     },
+                     (Rectangle) {
+                       .x = 0,
+                       .y = 0,
+                       .width = width,
+                       .height = height
+                     },
+                     Vector2Zero(),
+                     0.0f,
+                     WHITE);
+
       BeginShaderMode(arenaBorderShader); {
-        DrawTexturePro(target.texture,
-                       (Rectangle) {
-                         .x = 0,
-                         .y = 0,
-                         .width = width,
-                         .height = -height
-                       },
-                       (Rectangle) {
-                         .x = 0,
-                         .y = 0,
-                         .width = width,
-                         .height = height
-                       },
-                       Vector2Zero(),
-                       0.0f,
-                       WHITE);
+        DrawRectangle(0, 0,
+                      width, height,
+                      BLUE);
       } EndShaderMode();
     }; EndMode2D();
 

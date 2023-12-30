@@ -3,15 +3,12 @@
 in vec2 fragTexCoord;
 out vec4 finalColor;
 
-uniform sampler2D texture0;
-uniform vec4 colDiffuse;
 uniform vec4 borderColor;
 
 void main() {
-  vec4 texColor = texture(texture0, fragTexCoord) * colDiffuse;
-  vec2 uv = fragTexCoord;
+  vec2 uv = vec2(fragTexCoord.x, 1. - fragTexCoord.y);
 
-  float size = .01;
+  float size = .005;
 
   float lx = smoothstep(0., size, uv.x);
   float ly = smoothstep(0., size, uv.y);
@@ -21,5 +18,5 @@ void main() {
 
   float border = 1. - (lx * rx * ly * ry);
 
-  finalColor = texColor + (borderColor * border);
+  finalColor = (borderColor * border);
 }

@@ -4,12 +4,9 @@ precision mediump float;
 
 varying vec2 fragTexCoord;
 
-uniform sampler2D texture0;
-uniform vec4 colDiffuse;
 uniform vec4 borderColor;
 
 void main() {
-  vec4 texColor = texture2D(texture0, fragTexCoord) * colDiffuse;
   vec2 uv = fragTexCoord;
 
   float size = .01;
@@ -22,5 +19,5 @@ void main() {
 
   float border = 1. - (lx * rx * ly * ry);
 
-  gl_FragColor = texColor + (borderColor * border);
+  gl_FragColor = (borderColor * border);
 }
