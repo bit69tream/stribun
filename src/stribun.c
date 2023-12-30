@@ -723,13 +723,9 @@ void renderPhase1(void) {
     ClearBackground(BLACK);
 
     renderBackground();
-
     renderArenaBorder();
-
     renderThrusterTrails();
-
     renderProjectiles();
-
     renderPlayer();
     renderMouseCursor();
   } EndTextureMode();
