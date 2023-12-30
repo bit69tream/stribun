@@ -248,6 +248,8 @@ void updatePlayerPosition(void) {
   player.movementDirection = 0;
   player.movementDelta = Vector2Zero();
 
+  /* TODO: settings option to change movement keys */
+
   if (IsKeyDown(KEY_E)) {
     player.movementDirection |= DIRECTION_UP;
     player.movementDelta.y -= PLAYER_MOVEMENT_SPEED;
