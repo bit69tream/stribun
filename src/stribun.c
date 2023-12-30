@@ -136,7 +136,10 @@ typedef struct {
   Vector2 delta;
   Vector2 origin;
 
+  bool willBeDestroyed;
+  float destructionTimer;
   bool isHurtfulForPlayer;
+  /* TODO: make some projectiles able to bounce from the arena border */
 } Projectile;
 
 #define PROJECTILES_MAX 1024
@@ -662,8 +665,17 @@ void renderProjectiles(void) {
     switch (projectiles[i].type) {
     case PROJECTILE_NONE: break;
     case PROJECTILE_REGULAR: {
-      DrawCircleV(projectiles[i].origin, projectiles[i].radius, BLUE);
-      DrawCircleV(projectiles[i].origin, projectiles[i].radius - PROJECTILE_BORDER, WHITE);
+      DrawCircleV(projectiles[i].origin,
+                  projectiles[i].radius,
+                  BLUE);
+
+      if (projectiles[i].willBeDestroyed) {
+        break;
+      }
+
+      DrawCircleV(projectiles[i].origin,
+                  projectiles[i].radius - PROJECTILE_BORDER,
+                  WHITE);
     } break;
     case PROJECTILE_SQUARED: {
       Rectangle shape = (Rectangle) {
@@ -674,6 +686,10 @@ void renderProjectiles(void) {
       };
 
       DrawRectangleRec(shape, BLUE);
+
+      if (projectiles[i].willBeDestroyed) {
+        break;
+      }
 
       shape.x += PROJECTILE_BORDER;
       shape.y += PROJECTILE_BORDER;
@@ -736,23 +752,38 @@ void renderFinal(void) {
 }
 
 void updateProjectiles(void) {
-  Rectangle legalArea = {
-    .x = -(LEVEL_WIDTH / 2),
-    .y = -(LEVEL_HEIGHT / 2),
-    .width = LEVEL_WIDTH * 2,
-    .height = LEVEL_HEIGHT * 2,
-  };
-
   for (int i = 0; i < PROJECTILES_MAX; i++) {
     if (projectiles[i].type == PROJECTILE_NONE) {
       continue;
     }
 
+    projectiles[i].destructionTimer = Clamp(projectiles[i].destructionTimer - GetFrameTime(),
+                                            0,
+                                            1.0f);
+
+    if (projectiles[i].willBeDestroyed) {
+      if (projectiles[i].destructionTimer <= 0) {
+        projectiles[i].type = PROJECTILE_NONE;
+      }
+
+      continue;
+    }
+
     projectiles[i].origin = Vector2Add(projectiles[i].delta, projectiles[i].origin);
 
-    if (!CheckCollisionPointRec(projectiles[i].origin,
-                                legalArea)) {
-      projectiles[i].type = PROJECTILE_NONE;
+    if ((projectiles[i].origin.x <= 0) ||
+        (projectiles[i].origin.y <= 0) ||
+        (projectiles[i].origin.x >= (LEVEL_WIDTH - 1)) ||
+        (projectiles[i].origin.y >= (LEVEL_HEIGHT - 1))) {
+      projectiles[i].origin.x = Clamp(projectiles[i].origin.x,
+                                      0,
+                                      LEVEL_WIDTH - 1);
+      projectiles[i].origin.y = Clamp(projectiles[i].origin.y,
+                                      0,
+                                      LEVEL_HEIGHT - 1);
+
+      projectiles[i].willBeDestroyed = true;
+      projectiles[i].destructionTimer = 0.05f;
     }
   }
 }
@@ -866,7 +897,7 @@ int main(void) {
 
   sprites = LoadTexture("resources/sprites.png");
 
-  Vector4 arenaBorderColor = ColorNormalize(BLUE);
+  Vector4 arenaBorderColor = ColorNormalize(DARKBLUE);
 
   arenaBorderShader = LoadShader(NULL, TextFormat("resources/border-%d.frag", GLSL_VERSION));
   SetShaderValue(arenaBorderShader,
