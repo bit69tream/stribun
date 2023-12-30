@@ -299,8 +299,14 @@ void updatePlayerPosition(void) {
 
   player.position =
     Vector2Clamp(player.position,
-                 Vector2Zero(),
-                 level);
+                 (Vector2) {
+                   .x = PLAYER_HITBOX_RADIUS,
+                   .y = PLAYER_HITBOX_RADIUS,
+                 },
+                 (Vector2) {
+                   .x = level.x - PLAYER_HITBOX_RADIUS,
+                   .y = level.y - PLAYER_HITBOX_RADIUS,
+                 });
 }
 
 void renderBackground(void) {
