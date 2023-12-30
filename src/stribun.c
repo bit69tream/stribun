@@ -928,6 +928,10 @@ int main(void) {
                  GetShaderLocation(arenaBorderShader, "borderColor1"),
                  &arenaBorderColor1,
                  SHADER_ATTRIB_VEC4);
+  SetShaderValue(arenaBorderShader,
+                 GetShaderLocation(arenaBorderShader, "resolution"),
+                 &level,
+                 SHADER_ATTRIB_VEC2);
 
   Vector4 dashResetGlowColor = ColorNormalize(ColorAlpha(SKYBLUE, 0.1f));
 

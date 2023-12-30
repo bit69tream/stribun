@@ -7,6 +7,8 @@ varying vec2 fragTexCoord;
 uniform vec4 borderColor0;
 uniform vec4 borderColor1;
 
+uniform vec2 resolution;
+
 uniform float time;
 
 float rand(vec2 co){
@@ -26,7 +28,7 @@ void main() {
 
   float border = 1. - (lx * rx * ly * ry);
 
-  vec2 coord = uv * 2048.;
+  vec2 coord = uv * resolution;
 
   float t = rand(coord + time);
 
