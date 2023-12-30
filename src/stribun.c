@@ -76,6 +76,8 @@ typedef struct {
 static const int screenWidth = 1280;
 static const int screenHeight = 720;
 
+static Shader arenaBorderShader = {0};
+
 static Shader stars = {0};
 static int starsTime = 0;
 
@@ -709,22 +711,24 @@ void renderFinal(void) {
     float height = (float)target.texture.height;
 
     BeginMode2D(camera); {
-      DrawTexturePro(target.texture,
-                     (Rectangle) {
-                       .x = 0,
-                       .y = 0,
-                       .width = width,
-                       .height = -height
-                     },
-                     (Rectangle) {
-                       .x = 0,
-                       .y = 0,
-                       .width = width,
-                       .height = height
-                     },
-                     Vector2Zero(),
-                     0.0f,
-                     WHITE);
+      BeginShaderMode(arenaBorderShader); {
+        DrawTexturePro(target.texture,
+                       (Rectangle) {
+                         .x = 0,
+                         .y = 0,
+                         .width = width,
+                         .height = -height
+                       },
+                       (Rectangle) {
+                         .x = 0,
+                         .y = 0,
+                         .width = width,
+                         .height = height
+                       },
+                       Vector2Zero(),
+                       0.0f,
+                       WHITE);
+      } EndShaderMode();
     }; EndMode2D();
 
     DrawFPS(0, 0);
@@ -861,6 +865,14 @@ int main(void) {
   UnloadImage(n);
 
   sprites = LoadTexture("resources/sprites.png");
+
+  Vector4 arenaBorderColor = ColorNormalize(BLUE);
+
+  arenaBorderShader = LoadShader(NULL, TextFormat("resources/border-%d.frag", GLSL_VERSION));
+  SetShaderValue(arenaBorderShader,
+                 GetShaderLocation(arenaBorderShader, "borderColor"),
+                 &arenaBorderColor,
+                 SHADER_ATTRIB_VEC4);
 
   Vector4 dashResetGlowColor = ColorNormalize(ColorAlpha(SKYBLUE, 0.1f));
 
