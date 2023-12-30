@@ -3,12 +3,19 @@
 in vec2 fragTexCoord;
 out vec4 finalColor;
 
-uniform vec4 borderColor;
+uniform vec4 borderColor0;
+uniform vec4 borderColor1;
+
+uniform float time;
+
+float rand(vec2 co){
+  return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+}
 
 void main() {
-  vec2 uv = vec2(fragTexCoord.x, 1. - fragTexCoord.y);
+  vec2 uv = fragTexCoord;
 
-  float size = .005;
+  float size = .007;
 
   float lx = smoothstep(0., size, uv.x);
   float ly = smoothstep(0., size, uv.y);
@@ -18,5 +25,9 @@ void main() {
 
   float border = 1. - (lx * rx * ly * ry);
 
-  finalColor = (borderColor * border);
+  vec2 coord = uv * 2048.;
+
+  float t = rand(coord + time);
+
+  finalColor = mix(borderColor0, borderColor1, t) * border;
 }

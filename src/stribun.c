@@ -38,6 +38,7 @@
 #endif
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 typedef enum {
   DIRECTION_UP    = 0b0001,
@@ -77,6 +78,7 @@ static const int screenWidth = 1280;
 static const int screenHeight = 720;
 
 static Shader arenaBorderShader = {0};
+static int arenaBorderTime = 0;
 
 static Shader stars = {0};
 static int starsTime = 0;
@@ -702,6 +704,18 @@ void renderProjectiles(void) {
   }
 }
 
+void renderArenaBorder(void) {
+  SetShaderValue(arenaBorderShader,
+                 arenaBorderTime,
+                 &time,
+                 SHADER_UNIFORM_FLOAT);
+  BeginShaderMode(arenaBorderShader); {
+    DrawRectangle(0, 0,
+                  LEVEL_WIDTH, LEVEL_HEIGHT,
+                  BLUE);
+  } EndShaderMode();
+}
+
 void renderPhase1(void) {
   renderPlayerTexture();
 
@@ -709,6 +723,8 @@ void renderPhase1(void) {
     ClearBackground(BLACK);
 
     renderBackground();
+
+    renderArenaBorder();
 
     renderThrusterTrails();
 
@@ -743,12 +759,6 @@ void renderFinal(void) {
                      Vector2Zero(),
                      0.0f,
                      WHITE);
-
-      BeginShaderMode(arenaBorderShader); {
-        DrawRectangle(0, 0,
-                      width, height,
-                      BLUE);
-      } EndShaderMode();
     }; EndMode2D();
 
     DrawFPS(0, 0);
@@ -814,19 +824,27 @@ void updatePlayerCooldowns(void) {
 }
 
 void updateCamera(void) {
-  float screenWidth = GetScreenWidth();
-  float screenHeight = GetScreenHeight();
+  float windowWidth = GetScreenWidth();
+  float windowHeight = GetScreenHeight();
 
-  float target_x = Clamp(player.position.x, screenWidth / 2,
-                         (float)LEVEL_WIDTH - (screenWidth / 2));
-  float target_y = Clamp(player.position.y, screenHeight / 2,
-                         (float)LEVEL_HEIGHT - (screenHeight / 2));
+  float x = windowWidth / (float)screenWidth;
+  float y = windowHeight / (float)screenHeight;
+
+  camera.zoom = MIN(x, y);
+
+  float halfScreenWidth = (windowWidth / (2 * camera.zoom));
+  float halfScreenHeight = (windowHeight / (2 * camera.zoom));
+
+  float target_x = Clamp(player.position.x, halfScreenWidth,
+                         (float)LEVEL_WIDTH - halfScreenWidth);
+  float target_y = Clamp(player.position.y, halfScreenHeight,
+                         (float)LEVEL_HEIGHT - halfScreenHeight);
 
   camera.target.x = Lerp(camera.target.x, target_x, 0.1f);
   camera.target.y = Lerp(camera.target.y, target_y, 0.1f);
 
-  camera.offset.x = (float)GetScreenWidth() / 2.0f;
-  camera.offset.y = (float)GetScreenHeight() / 2.0f;
+  camera.offset.x = windowWidth / 2.0f;
+  camera.offset.y = windowHeight / 2.0f;
 }
 
 void UpdateDrawFrame(void) {
@@ -901,12 +919,18 @@ int main(void) {
 
   sprites = LoadTexture("resources/sprites.png");
 
-  Vector4 arenaBorderColor = ColorNormalize(DARKBLUE);
+  Vector4 arenaBorderColor0 = ColorNormalize(DARKBLUE);
+  Vector4 arenaBorderColor1 = ColorNormalize(BLUE);
 
   arenaBorderShader = LoadShader(NULL, TextFormat("resources/border-%d.frag", GLSL_VERSION));
+  arenaBorderTime = GetShaderLocation(arenaBorderShader, "time");
   SetShaderValue(arenaBorderShader,
-                 GetShaderLocation(arenaBorderShader, "borderColor"),
-                 &arenaBorderColor,
+                 GetShaderLocation(arenaBorderShader, "borderColor0"),
+                 &arenaBorderColor0,
+                 SHADER_ATTRIB_VEC4);
+  SetShaderValue(arenaBorderShader,
+                 GetShaderLocation(arenaBorderShader, "borderColor1"),
+                 &arenaBorderColor1,
                  SHADER_ATTRIB_VEC4);
 
   Vector4 dashResetGlowColor = ColorNormalize(ColorAlpha(SKYBLUE, 0.1f));
