@@ -30,5 +30,5 @@ void main() {
 
   float t = rand(coord + time);
 
-  finalColor = mix(borderColor0, borderColor1, t) * border;
+  gl_FragColor = mix(borderColor0, borderColor1, t) * border;
 }
