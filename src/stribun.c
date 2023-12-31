@@ -132,16 +132,23 @@ typedef enum {
   PROJECTILE_SQUARED,
 } ProjectileType;
 
+/* TODO: maybe make some projectiles able to bounce from the arena border */
 typedef struct {
   ProjectileType type;
-  float radius;
+
+  union {
+    float radius;
+    Vector2 size;
+  };
+
   Vector2 delta;
   Vector2 origin;
+  float angle;
 
   bool willBeDestroyed;
   float destructionTimer;
+
   bool isHurtfulForPlayer;
-  /* TODO: make some projectiles able to bounce from the arena border */
 } Projectile;
 
 #define PROJECTILES_MAX 1024
@@ -163,6 +170,17 @@ Projectile *push_projectile(void) {
 static Vector2 lookingDirection = {0};
 
 static Vector2 screenMouseLocation = {0};
+
+float playerLookingAngle(void) {
+  static const Vector2 up = {
+    .x = 0,
+    .y = -1,
+  };
+
+  float angle = Vector2Angle(up, lookingDirection) * RAD2DEG;
+
+  return angle;
+}
 
 void updateMouse(void) {
   if (IsCursorHidden()) {
@@ -224,7 +242,7 @@ void tryDashing(void) {
 
 #define PLAYER_FIRE_COOLDOWN 0.15f
 #define PLAYER_PROJECTILE_RADIUS 9
-#define PLAYER_PROJECTILE_SPEED 7.0f
+#define PLAYER_PROJECTILE_SPEED 30.0f
 
 void tryFiringAShot(void) {
   if (!IsMouseButtonDown(MOUSE_BUTTON_LEFT) ||
@@ -239,11 +257,18 @@ void tryFiringAShot(void) {
   }
 
   *new_projectile = (Projectile) {
-    .type = PROJECTILE_REGULAR,
+    .type = PROJECTILE_SQUARED,
+
     .isHurtfulForPlayer = false,
-    .origin = Vector2Add(player.position, Vector2Scale(lookingDirection, 25)),
-    .radius = PLAYER_PROJECTILE_RADIUS,
+
+    .origin = Vector2Add(player.position, Vector2Scale(lookingDirection, 35)),
+    /* .radius = PLAYER_PROJECTILE_RADIUS, */
+    .size = (Vector2) {
+      .x = PLAYER_PROJECTILE_RADIUS * 1.5,
+      .y = PLAYER_PROJECTILE_RADIUS * 3,
+    },
     .delta = Vector2Scale(lookingDirection, PLAYER_PROJECTILE_SPEED),
+    .angle = playerLookingAngle(),
   };
 
   player.fireCooldown = PLAYER_FIRE_COOLDOWN;
@@ -377,17 +402,6 @@ static Rectangle thrustersRects[] = {
     .height = 18,
   },
 };
-
-float playerLookingAngle(void) {
-  static const Vector2 up = {
-    .x = 0,
-    .y = -1,
-  };
-
-  float angle = Vector2Angle(up, lookingDirection) * RAD2DEG;
-
-  return angle;
-}
 
 int whichThrustersToUse(void) {
   float angle = playerLookingAngle();
@@ -683,28 +697,38 @@ void renderProjectiles(void) {
 
       DrawCircleV(projectiles[i].origin,
                   projectiles[i].radius - PROJECTILE_BORDER,
-                  WHITE);
+                  DARKBLUE);
     } break;
     case PROJECTILE_SQUARED: {
       Rectangle shape = (Rectangle) {
-        .x = projectiles[i].origin.x - projectiles[i].radius,
-        .y = projectiles[i].origin.y - projectiles[i].radius,
-        .width = projectiles[i].radius * 2,
-        .height = projectiles[i].radius * 2,
+        .x = projectiles[i].origin.x,
+        .y = projectiles[i].origin.y,
+        .width = projectiles[i].size.x,
+        .height = projectiles[i].size.y,
       };
 
-      DrawRectangleRec(shape, BLUE);
+      DrawRectanglePro(shape,
+                       (Vector2) {
+                         .x = shape.width / 2,
+                         .y = shape.height / 2,
+                       },
+                       projectiles[i].angle,
+                       BLUE);
 
       if (projectiles[i].willBeDestroyed) {
         break;
       }
 
-      shape.x += PROJECTILE_BORDER;
-      shape.y += PROJECTILE_BORDER;
       shape.width -= PROJECTILE_BORDER * 2;
       shape.height -= PROJECTILE_BORDER * 2;
 
-      DrawRectangleRec(shape, WHITE);
+      DrawRectanglePro(shape,
+                       (Vector2) {
+                         .x = shape.width / 2,
+                         .y = shape.height / 2,
+                       },
+                       projectiles[i].angle,
+                       DARKBLUE);
     } break;
     }
   }
