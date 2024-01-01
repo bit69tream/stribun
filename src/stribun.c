@@ -292,11 +292,6 @@ void checkForCollisionsBetweenAsteroids(int i, int k) {
         Vector2 offset = Vector2Rotate((Vector2) {0, offsetDistance}, angle);
         asteroids[i].position = Vector2Add(asteroids[i].position, offset);
 
-        Vector2 deltaDiff = {
-          .x = fabsf(asteroids[k].delta.x - asteroids[i].delta.x),
-          .y = fabsf(asteroids[k].delta.y - asteroids[i].delta.y),
-        };
-
         asteroids[i].delta = Vector2Reflect(asteroids[i].delta, (Vector2) {0, -1});
         asteroids[k].delta = Vector2Reflect(asteroids[k].delta, (Vector2) {0, -1});
         return;
@@ -339,8 +334,6 @@ void checkForCollisionsBetweenAnAsteroidsAndBorders(void) {
 
 void updateAsteroids(void) {
   for (int i = 0; i < asteroidsLen; i++) {
-    bool collides = false;
-
     for (int k = 0; k < asteroidsLen; k++) {
       if (k == i) {
         continue;
@@ -471,6 +464,7 @@ void tryFiringAShot(void) {
 
   *new_projectile = (Projectile) {
     .type = PROJECTILE_SQUARED,
+    /* .type = PROJECTILE_REGULAR, */
 
     .isHurtfulForPlayer = false,
 
@@ -1058,6 +1052,32 @@ void renderFinal(void) {
   } EndDrawing();
 }
 
+bool doesRectangleCollideWithACircle(Rectangle a, float angle, Circle b) {
+  (void) a;
+  (void) angle;
+  (void) b;
+
+  return false;
+}
+
+void checkRegularProjectileCollision(int i) {
+  for (int j = 0; j < asteroidsLen; j++) {
+    for (int bj = 0; bj < asteroids[j].sprite->boundingCirclesLen; bj++) {
+      if (CheckCollisionCircles(projectiles[i].origin, projectiles[i].radius,
+                                Vector2Add(asteroids[j].processedBoundingCircles[bj].position,
+                                           asteroids[j].position),
+                                asteroids[j].processedBoundingCircles[bj].radius)) {
+        projectiles[i].willBeDestroyed = true;
+        return;
+      }
+    }
+  }
+}
+
+void checkSquaredProjectileCollision(int i) {
+  (void) i;
+}
+
 void updateProjectiles(void) {
   for (int i = 0; i < PROJECTILES_MAX; i++) {
     if (projectiles[i].type == PROJECTILE_NONE) {
@@ -1076,8 +1096,6 @@ void updateProjectiles(void) {
       continue;
     }
 
-    projectiles[i].origin = Vector2Add(projectiles[i].delta, projectiles[i].origin);
-
     if ((projectiles[i].origin.x <= 0) ||
         (projectiles[i].origin.y <= 0) ||
         (projectiles[i].origin.x >= (LEVEL_WIDTH - 1)) ||
@@ -1091,7 +1109,20 @@ void updateProjectiles(void) {
 
       projectiles[i].willBeDestroyed = true;
       projectiles[i].destructionTimer = 0.05f;
+      continue;
     }
+
+    switch (projectiles[i].type) {
+    case PROJECTILE_REGULAR: checkRegularProjectileCollision(i); break;
+    case PROJECTILE_SQUARED: checkSquaredProjectileCollision(i); break;
+    case PROJECTILE_NONE: break;
+    }
+
+    if (projectiles[i].willBeDestroyed) {
+      continue;
+    }
+
+    projectiles[i].origin = Vector2Add(projectiles[i].delta, projectiles[i].origin);
   }
 }
 
