@@ -196,7 +196,7 @@ typedef struct {
   Vector2 position;
   Vector2 delta;
 
-  Circle rotatedBoundingCircles[MAX_BOUNDING_CIRCLES];
+  Circle processedBoundingCircles[MAX_BOUNDING_CIRCLES];
 } Asteroid;
 
 #define MIN_ASTEROIDS 4
@@ -264,12 +264,15 @@ void updateAsteroids(void) {
     asteroids[i].angle = mod(properAngle + asteroids[i].angleDelta, 360) - 180;
 
     for (int j = 0; j < asteroids[i].sprite->boundingCirclesLen; j++) {
-      asteroids[i].rotatedBoundingCircles[j] =
-        asteroids[i].sprite->boundingCircles[j];
-
-      asteroids[i].rotatedBoundingCircles[j].position =
-        Vector2Rotate(asteroids[i].rotatedBoundingCircles[j].position,
+      asteroids[i].processedBoundingCircles[j].position =
+        Vector2Rotate(asteroids[i].sprite->boundingCircles[j].position,
                       asteroids[i].angle * DEG2RAD);
+
+      asteroids[i].processedBoundingCircles[j].position =
+        Vector2Scale(asteroids[i].processedBoundingCircles[j].position, SPRITES_SCALE);
+
+      asteroids[i].processedBoundingCircles[j].radius =
+        asteroids[i].sprite->boundingCircles[j].radius * SPRITES_SCALE;
     }
   }
 }
@@ -393,10 +396,7 @@ void tryFiringAShot(void) {
   PlaySound(playerShot);
 }
 
-void updatePlayerPosition(void) {
-  player.movementDirection = 0;
-  player.movementDelta = Vector2Zero();
-
+void movePlayerWithAKeyboard(void) {
   /* TODO: settings option to change movement keys */
 
   if (IsKeyDown(KEY_E)) {
@@ -419,10 +419,25 @@ void updatePlayerPosition(void) {
     player.movementDelta.x += PLAYER_MOVEMENT_SPEED;
   }
 
-  player.position =
+  Vector2 newPosition =
     Vector2Add(player.position,
                player.movementDelta);
 
+  for (int i = 0; i < asteroidsLen; i++) {
+    for (int j = 0; j < asteroids[i].sprite->boundingCirclesLen; j++) {
+      if (CheckCollisionCircles(newPosition, PLAYER_HITBOX_RADIUS,
+                                Vector2Add(asteroids[i].processedBoundingCircles[j].position,
+                                           asteroids[i].position),
+                                asteroids[i].processedBoundingCircles[j].radius)) {
+        return;
+      }
+    }
+  }
+
+  player.position = newPosition;
+}
+
+void movePlayerWithADash(void) {
 #define DASH_DELTA_LERP_RATE 0.5f
   player.dashDelta.x = Lerp(player.dashDelta.x,
                             0.0f,
@@ -438,6 +453,14 @@ void updatePlayerPosition(void) {
   player.position =
     Vector2Add(player.position,
                player.dashDelta);
+}
+
+void updatePlayerPosition(void) {
+  player.movementDirection = 0;
+  player.movementDelta = Vector2Zero();
+
+  movePlayerWithAKeyboard();
+  movePlayerWithADash();
 
   player.position =
     Vector2Clamp(player.position,
@@ -739,7 +762,7 @@ void renderPlayer(void) {
                  WHITE);
 
   /* if (player.isInvincible) */
-  /*   DrawCircleV(player.position, PLAYER_HITBOX_RADIUS, RED); */
+    DrawCircleV(player.position, PLAYER_HITBOX_RADIUS, BLUE);
 }
 
 void renderThrusterTrails(void) {
@@ -884,12 +907,9 @@ void renderAsteroids(void) {
                    WHITE);
 
     for (int j = 0; j < asteroids[i].sprite->boundingCirclesLen; j++) {
-      Vector2 scaledPosition = Vector2Scale(asteroids[i].rotatedBoundingCircles[j].position, SPRITES_SCALE);
-      float scaledRadius = asteroids[i].rotatedBoundingCircles[j].radius * SPRITES_SCALE;
-
-      DrawCircleV(Vector2Add(scaledPosition,
+      DrawCircleV(Vector2Add(asteroids[i].processedBoundingCircles[j].position,
                              asteroids[i].position),
-                  scaledRadius,
+                  asteroids[i].processedBoundingCircles[j].radius,
                   RED);
     }
   }
