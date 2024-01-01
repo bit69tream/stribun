@@ -257,7 +257,7 @@ float mod(float v, float max) {
 
 void updateAsteroids(void) {
   for (int i = 0; i < asteroidsLen; i++) {
-    /* asteroids[i].position = Vector2Add(asteroids[i].position, asteroids[i].delta); */
+    asteroids[i].position = Vector2Add(asteroids[i].position, asteroids[i].delta);
 
     float properAngle = asteroids[i].angle + 180;
 
