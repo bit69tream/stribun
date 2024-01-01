@@ -122,12 +122,15 @@ static Rectangle playerRect = {
 #define MAX_BOUNDING_CIRCLES 10
 
 typedef struct {
+  Vector2 position;
+  float radius;
+} Circle;
+
+typedef struct {
   Rectangle textureRect;
   int boundingCirclesLen;
-  struct {
-    Vector2 relativePosition;
-    float radius;
-  } boundingCircles[MAX_BOUNDING_CIRCLES];
+  /* NOTE: positions are relative to the center of the texture */
+  Circle boundingCircles[MAX_BOUNDING_CIRCLES];
 } AsteroidSprite;
 
 static const AsteroidSprite asteroidSprites[] = {
@@ -141,7 +144,7 @@ static const AsteroidSprite asteroidSprites[] = {
     .boundingCirclesLen = 1,
     .boundingCircles = {
       {
-        .relativePosition = {9, 9},
+        .position = {0, 0},
         .radius = 9,
       }
     },
@@ -153,15 +156,19 @@ static const AsteroidSprite asteroidSprites[] = {
       .width = 35,
       .height = 25,
     },
-    .boundingCirclesLen = 2,
+    .boundingCirclesLen = 3,
     .boundingCircles = {
       {
-        .relativePosition = {10, 13},
-        .radius = 12,
+        .position = {6, -2},
+        .radius = 11,
       },
       {
-        .relativePosition = {24, 10},
-        .radius = 11,
+        .position = {4, 7},
+        .radius = 5,
+      },
+      {
+        .position = {-6, 1},
+        .radius = 12,
       }
     }
   },
@@ -175,7 +182,7 @@ static const AsteroidSprite asteroidSprites[] = {
     .boundingCirclesLen = 1,
     .boundingCircles = {
       {
-        .relativePosition = {15, 13},
+        .position = {0, 0},
         .radius = 13,
       }
     }
@@ -185,10 +192,14 @@ static const AsteroidSprite asteroidSprites[] = {
 typedef struct {
   const AsteroidSprite * sprite;
   float angle;
+  float angleDelta;
   Vector2 position;
   Vector2 delta;
+
+  Circle rotatedBoundingCircles[MAX_BOUNDING_CIRCLES];
 } Asteroid;
 
+#define MIN_ASTEROIDS 4
 #define MAX_ASTEROIDS 10
 static Asteroid asteroids[MAX_ASTEROIDS] = {0};
 static int asteroidsLen = 0;
@@ -231,6 +242,37 @@ typedef struct {
 static Projectile projectiles[PROJECTILES_MAX] = {0};
 
 #define MOUSE_SENSITIVITY 0.7f
+
+float mod(float v, float max) {
+  if (v > max) {
+    return fmodf(v, max);
+  }
+
+  if (v < 0) {
+    return max - fmodf(v, max);
+  }
+
+  return v;
+}
+
+void updateAsteroids(void) {
+  for (int i = 0; i < asteroidsLen; i++) {
+    asteroids[i].position = Vector2Add(asteroids[i].position, asteroids[i].delta);
+
+    float properAngle = asteroids[i].angle + 180;
+
+    asteroids[i].angle = mod(properAngle + asteroids[i].angleDelta, 360) - 180;
+
+    for (int j = 0; j < asteroids[i].sprite->boundingCirclesLen; j++) {
+      asteroids[i].rotatedBoundingCircles[j] =
+        asteroids[i].sprite->boundingCircles[j];
+
+      asteroids[i].rotatedBoundingCircles[j].position =
+        Vector2Rotate(asteroids[i].rotatedBoundingCircles[j].position,
+                      asteroids[i].angle * DEG2RAD);
+    }
+  }
+}
 
 Projectile *push_projectile(void) {
   for (int i = 0; i < PROJECTILES_MAX; i++) {
@@ -824,6 +866,11 @@ void renderArenaBorder(void) {
 
 void renderAsteroids(void) {
   for (int i = 0; i < asteroidsLen; i++) {
+    Vector2 center = {
+      .x = (asteroids[i].sprite->textureRect.width * SPRITES_SCALE) / 2,
+      .y = (asteroids[i].sprite->textureRect.height * SPRITES_SCALE) / 2,
+    };
+
     DrawTexturePro(sprites,
                    asteroids[i].sprite->textureRect,
                    (Rectangle) {
@@ -832,12 +879,19 @@ void renderAsteroids(void) {
                      .width = asteroids[i].sprite->textureRect.width * SPRITES_SCALE,
                      .height = asteroids[i].sprite->textureRect.height * SPRITES_SCALE,
                    },
-                   (Vector2) {
-                     .x = (asteroids[i].sprite->textureRect.width * SPRITES_SCALE) / 2,
-                     .y = (asteroids[i].sprite->textureRect.height * SPRITES_SCALE) / 2,
-                   },
+                   center,
                    asteroids[i].angle,
                    WHITE);
+
+    for (int j = 0; j < asteroids[i].sprite->boundingCirclesLen; j++) {
+      Vector2 scaledPosition = Vector2Scale(asteroids[i].rotatedBoundingCircles[j].position, SPRITES_SCALE);
+      float scaledRadius = asteroids[i].rotatedBoundingCircles[j].radius * SPRITES_SCALE;
+
+      DrawCircleV(Vector2Add(scaledPosition,
+                             asteroids[i].position),
+                  scaledRadius,
+                  RED);
+    }
   }
 }
 
@@ -978,6 +1032,7 @@ void UpdateDrawFrame(void) {
 
   updateProjectiles();
   updateThrusterTrails();
+  updateAsteroids();
 
   updateMouse();
   updatePlayerPosition();
@@ -1036,7 +1091,7 @@ void initProjectiles(void) {
 }
 
 void initAsteroids(void) {
-  asteroidsLen = GetRandomValue(0, MAX_ASTEROIDS - 1);
+  asteroidsLen = GetRandomValue(MIN_ASTEROIDS, MAX_ASTEROIDS - 1);
 
   const int maxAsteroidSprites = (sizeof(asteroidSprites) / sizeof(asteroidSprites[0]));
 
@@ -1047,10 +1102,14 @@ void initAsteroids(void) {
     int h = (int)asteroidSprites[asteroidSpriteIndex].textureRect.height;
 
     asteroids[i].sprite = &asteroidSprites[asteroidSpriteIndex];
-    asteroids[i].angle = (float)GetRandomValue(0, 360);
+    asteroids[i].angle = (float)GetRandomValue(0, 360) - 180;
+    asteroids[i].angleDelta = (float)GetRandomValue(-8, 8) / 64.0f;
     asteroids[i].position.x = (float)GetRandomValue(w, LEVEL_WIDTH - w);
     asteroids[i].position.y = (float)GetRandomValue(h, LEVEL_WIDTH - h);
-    asteroids[i].delta = Vector2Zero();
+    asteroids[i].delta = (Vector2) {
+      .x = (float)GetRandomValue(-8, 8) / 64.0f,
+      .y = (float)GetRandomValue(-8, 8) / 64.0f,
+    };
   }
 }
 
