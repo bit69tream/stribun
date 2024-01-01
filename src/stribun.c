@@ -440,6 +440,21 @@ void movePlayerWithADash(void) {
                player.dashDelta);
 }
 
+float angleBetweenPoints(Vector2 p1, Vector2 p2) {
+  Vector2 d = Vector2Subtract(p1, p2);
+  float dist = sqrt((d.x * d.x) + (d.y * d.y));
+
+  float alpha = asin(d.x / dist) * RAD2DEG;
+
+  if (d.y > 0) {
+    alpha = copysignf(180 - fabsf(alpha), alpha);
+  }
+
+  alpha += 180;
+
+  return alpha;
+}
+
 void processCollisions(void) {
   for (int i = 0; i < asteroidsLen; i++) {
     for (int j = 0; j < asteroids[i].sprite->boundingCirclesLen; j++) {
@@ -447,29 +462,17 @@ void processCollisions(void) {
         Vector2Add(asteroids[i].processedBoundingCircles[j].position,
                    asteroids[i].position);
 
-      float r = asteroids[i].processedBoundingCircles[j].radius;
+      float distance = Vector2Distance(pos, player.position);
+      float radiusSum =
+        (asteroids[i].processedBoundingCircles[j].radius + PLAYER_HITBOX_RADIUS);
 
-      float a = (pos.x - player.position.x);
-      float b = (pos.y - player.position.y);
-      float c = sqrt((a * a) + (b * b));
+      if (distance < radiusSum) {
+        float angle = angleBetweenPoints(pos, player.position) * DEG2RAD;
 
-      if (c < (r + PLAYER_HITBOX_RADIUS)) {
-        float alpha = asin(a / c) * RAD2DEG;
+        float offsetDistance = distance - radiusSum;
+        Vector2 playerOffset = Vector2Rotate((Vector2) {0, offsetDistance}, angle);
 
-        if (b > 0) {
-          alpha = copysignf(180 - fabsf(alpha), alpha);
-        }
-
-        alpha += 180;
-
-        alpha *= DEG2RAD;
-
-        float d = c - (r + PLAYER_HITBOX_RADIUS);
-        Vector2 playerOffset = Vector2Rotate((Vector2) {0, d},
-                                             alpha);
-
-        player.position = Vector2Add(player.position,
-                                     playerOffset);
+        player.position = Vector2Add(player.position, playerOffset);
       }
     }
   }
