@@ -272,10 +272,12 @@ float angleBetweenPoints(Vector2 p1, Vector2 p2) {
 
 void checkForCollisionsBetweenAsteroids(int i, int k) {
   for (int bi = 0; bi < asteroids[i].sprite->boundingCirclesLen; bi++) {
-    Vector2 ipos = Vector2Add(asteroids[i].position, asteroids[i].processedBoundingCircles[bi].position);
+    Vector2 ipos = Vector2Add(asteroids[i].position,
+                              asteroids[i].processedBoundingCircles[bi].position);
 
     for (int bk = 0; bk < asteroids[k].sprite->boundingCirclesLen; bk++) {
-      Vector2 kpos = Vector2Add(asteroids[k].position, asteroids[k].processedBoundingCircles[bk].position);
+      Vector2 kpos = Vector2Add(asteroids[k].position,
+                                asteroids[k].processedBoundingCircles[bk].position);
 
       float distance = Vector2Distance(kpos, ipos);
       float radiusSum =
@@ -295,9 +297,41 @@ void checkForCollisionsBetweenAsteroids(int i, int k) {
           .y = fabsf(asteroids[k].delta.y - asteroids[i].delta.y),
         };
 
-        asteroids[i].delta = Vector2Rotate(asteroids[i].delta, 180 * DEG2RAD);
-        asteroids[k].delta = Vector2Rotate(asteroids[k].delta, 180 * DEG2RAD);
+        asteroids[i].delta = Vector2Reflect(asteroids[i].delta, (Vector2) {0, -1});
+        asteroids[k].delta = Vector2Reflect(asteroids[k].delta, (Vector2) {0, -1});
         return;
+      }
+    }
+  }
+}
+
+void checkForCollisionsBetweenAnAsteroidsAndBorders(void) {
+  Vector2 normalDown = {0, 1};
+  Vector2 normalUp = {0, -1};
+  Vector2 normalRight = {1, 0};
+  Vector2 normalLeft = {-1, 0};
+
+  for (int i = 0; i < asteroidsLen; i++) {
+    for (int j = 0; j < asteroids[i].sprite->boundingCirclesLen; j++) {
+      Vector2 pos = Vector2Add(asteroids[i].position,
+                               asteroids[i].processedBoundingCircles[j].position);
+
+      float r = asteroids[i].processedBoundingCircles[j].radius;
+
+      if ((pos.y - r) <= 0) {
+        asteroids[i].delta = Vector2Reflect(asteroids[i].delta, normalDown);
+      }
+
+      if ((pos.x - r) <= 0) {
+        asteroids[i].delta = Vector2Reflect(asteroids[i].delta, normalRight);
+      }
+
+      if ((pos.y + r) >= LEVEL_HEIGHT - 1) {
+        asteroids[i].delta = Vector2Reflect(asteroids[i].delta, normalUp);
+      }
+
+      if ((pos.x + r) >= LEVEL_WIDTH - 1) {
+        asteroids[i].delta = Vector2Reflect(asteroids[i].delta, normalLeft);
       }
     }
   }
@@ -314,6 +348,8 @@ void updateAsteroids(void) {
 
       checkForCollisionsBetweenAsteroids(i, k);
     }
+
+    checkForCollisionsBetweenAnAsteroidsAndBorders();
 
     asteroids[i].position = Vector2Add(asteroids[i].position, asteroids[i].delta);
 
