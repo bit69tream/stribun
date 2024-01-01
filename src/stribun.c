@@ -255,12 +255,58 @@ float mod(float v, float max) {
   return v;
 }
 
+float angleBetweenPoints(Vector2 p1, Vector2 p2) {
+  Vector2 d = Vector2Subtract(p1, p2);
+  float dist = sqrt((d.x * d.x) + (d.y * d.y));
+
+  float alpha = asin(d.x / dist) * RAD2DEG;
+
+  if (d.y > 0) {
+    alpha = copysignf(180 - fabsf(alpha), alpha);
+  }
+
+  alpha += 180;
+
+  return alpha;
+}
+
 void updateAsteroids(void) {
   for (int i = 0; i < asteroidsLen; i++) {
+    bool collides = false;
+
+    for (int k = 0; k < asteroidsLen; k++) {
+      if (k == i) {
+        continue;
+      }
+
+      for (int bi = 0; bi < asteroids[i].sprite->boundingCirclesLen; bi++) {
+        for (int bk = 0; bk < asteroids[k].sprite->boundingCirclesLen; bk++) {
+          float distance = Vector2Distance(Vector2Add(asteroids[k].position, asteroids[k].processedBoundingCircles[bk].position),
+                                           Vector2Add(asteroids[i].position, asteroids[i].processedBoundingCircles[bi].position));
+          float radiusSum =
+            (asteroids[k].processedBoundingCircles[bk].radius +
+             asteroids[i].processedBoundingCircles[bi].radius);
+
+          if (distance < radiusSum) {
+            printf("collision!!!\n");
+
+            Vector2 deltaDiff = {
+              .x = fabsf(asteroids[k].delta.x - asteroids[i].delta.x),
+              .y = fabsf(asteroids[k].delta.y - asteroids[i].delta.y),
+            };
+
+            asteroids[i].delta = Vector2Subtract(asteroids[i].delta, deltaDiff);
+            asteroids[k].delta = Vector2Add(asteroids[k].delta, deltaDiff);
+            goto end;
+          }
+        }
+      }
+    end:;
+    }
+
     asteroids[i].position = Vector2Add(asteroids[i].position, asteroids[i].delta);
 
     float properAngle = asteroids[i].angle + 180;
-
     asteroids[i].angle = mod(properAngle + asteroids[i].angleDelta, 360) - 180;
 
     for (int j = 0; j < asteroids[i].sprite->boundingCirclesLen; j++) {
@@ -438,21 +484,6 @@ void movePlayerWithADash(void) {
   player.position =
     Vector2Add(player.position,
                player.dashDelta);
-}
-
-float angleBetweenPoints(Vector2 p1, Vector2 p2) {
-  Vector2 d = Vector2Subtract(p1, p2);
-  float dist = sqrt((d.x * d.x) + (d.y * d.y));
-
-  float alpha = asin(d.x / dist) * RAD2DEG;
-
-  if (d.y > 0) {
-    alpha = copysignf(180 - fabsf(alpha), alpha);
-  }
-
-  alpha += 180;
-
-  return alpha;
 }
 
 void processCollisions(void) {
