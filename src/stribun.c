@@ -257,7 +257,7 @@ float mod(float v, float max) {
 
 void updateAsteroids(void) {
   for (int i = 0; i < asteroidsLen; i++) {
-    asteroids[i].position = Vector2Add(asteroids[i].position, asteroids[i].delta);
+    /* asteroids[i].position = Vector2Add(asteroids[i].position, asteroids[i].delta); */
 
     float properAngle = asteroids[i].angle + 180;
 
@@ -419,22 +419,7 @@ void movePlayerWithAKeyboard(void) {
     player.movementDelta.x += PLAYER_MOVEMENT_SPEED;
   }
 
-  Vector2 newPosition =
-    Vector2Add(player.position,
-               player.movementDelta);
-
-  for (int i = 0; i < asteroidsLen; i++) {
-    for (int j = 0; j < asteroids[i].sprite->boundingCirclesLen; j++) {
-      if (CheckCollisionCircles(newPosition, PLAYER_HITBOX_RADIUS,
-                                Vector2Add(asteroids[i].processedBoundingCircles[j].position,
-                                           asteroids[i].position),
-                                asteroids[i].processedBoundingCircles[j].radius)) {
-        return;
-      }
-    }
-  }
-
-  player.position = newPosition;
+  player.position = Vector2Add(player.position, player.movementDelta);
 }
 
 void movePlayerWithADash(void) {
@@ -455,12 +440,49 @@ void movePlayerWithADash(void) {
                player.dashDelta);
 }
 
+void processCollisions(void) {
+  for (int i = 0; i < asteroidsLen; i++) {
+    for (int j = 0; j < asteroids[i].sprite->boundingCirclesLen; j++) {
+      Vector2 pos =
+        Vector2Add(asteroids[i].processedBoundingCircles[j].position,
+                   asteroids[i].position);
+
+      float r = asteroids[i].processedBoundingCircles[j].radius;
+
+      float a = (pos.x - player.position.x);
+      float b = (pos.y - player.position.y);
+      float c = sqrt((a * a) + (b * b));
+
+      if (c < (r + PLAYER_HITBOX_RADIUS)) {
+        float alpha = asin(a / c) * RAD2DEG;
+
+        if (b > 0) {
+          alpha = copysignf(180 - fabsf(alpha), alpha);
+        }
+
+        alpha += 180;
+
+        alpha *= DEG2RAD;
+
+        float d = c - (r + PLAYER_HITBOX_RADIUS);
+        Vector2 playerOffset = Vector2Rotate((Vector2) {0, d},
+                                             alpha);
+
+        player.position = Vector2Add(player.position,
+                                     playerOffset);
+      }
+    }
+  }
+}
+
 void updatePlayerPosition(void) {
   player.movementDirection = 0;
   player.movementDelta = Vector2Zero();
 
   movePlayerWithAKeyboard();
   movePlayerWithADash();
+
+  processCollisions();
 
   player.position =
     Vector2Clamp(player.position,
@@ -760,9 +782,6 @@ void renderPlayer(void) {
                  },
                  playerLookingAngle(),
                  WHITE);
-
-  /* if (player.isInvincible) */
-    DrawCircleV(player.position, PLAYER_HITBOX_RADIUS, BLUE);
 }
 
 void renderThrusterTrails(void) {
@@ -891,7 +910,7 @@ void renderAsteroids(void) {
   for (int i = 0; i < asteroidsLen; i++) {
     Vector2 center = {
       .x = (asteroids[i].sprite->textureRect.width * SPRITES_SCALE) / 2,
-      .y = (asteroids[i].sprite->textureRect.height * SPRITES_SCALE) / 2,
+        .y = (asteroids[i].sprite->textureRect.height * SPRITES_SCALE) / 2,
     };
 
     DrawTexturePro(sprites,
@@ -905,13 +924,6 @@ void renderAsteroids(void) {
                    center,
                    asteroids[i].angle,
                    WHITE);
-
-    for (int j = 0; j < asteroids[i].sprite->boundingCirclesLen; j++) {
-      DrawCircleV(Vector2Add(asteroids[i].processedBoundingCircles[j].position,
-                             asteroids[i].position),
-                  asteroids[i].processedBoundingCircles[j].radius,
-                  RED);
-    }
   }
 }
 
