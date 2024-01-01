@@ -892,7 +892,7 @@ void UpdateDrawFrame(void) {
   time += GetFrameTime();
 }
 
-int main(void) {
+void initRaylib() {
 #if !defined(_DEBUG)
   SetTraceLogLevel(LOG_NONE);
 #endif
@@ -903,18 +903,19 @@ int main(void) {
   SetExitKey(KEY_NULL);
   SetWindowState(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_MAXIMIZED | FLAG_BORDERLESS_WINDOWED_MODE);
 #endif
+}
 
+void initMouse(void) {
   DisableCursor();
 
   screenMouseLocation = (Vector2) {
     .x = (float)screenWidth / 2,
     .y = ((float)screenHeight / 6),
   };
+}
 
+void initPlayer(void) {
   memset(&player, 0, sizeof(player));
-
-  camera.rotation = 0;
-  camera.zoom = 1;
 
   player = (Player) {
     .position = (Vector2) {
@@ -923,72 +924,113 @@ int main(void) {
     },
     .isInvincible = false,
   };
+}
 
+void initCamera(void) {
+  camera.rotation = 0;
+  camera.zoom = 1;
+}
+
+void initProjectiles(void) {
   memset(projectiles, 0, sizeof(projectiles));
+}
 
-  time = 0;
+void initAsteroids(void) {
+  asteroidsLen = 2;
+}
 
+void initSoundEffects(void) {
   dashSoundEffect = LoadSound("resources/dash.wav");
   SetSoundVolume(dashSoundEffect, 0.3);
 
   playerShot = LoadSound("resources/shot01.wav");
   SetSoundVolume(playerShot, 0.2);
+}
 
-  #define NEBULAE_NOISE_DOWNSCALE_FACTOR 8
+void initShaders(void) {
+  time = 0;
 
-  Image n = GenImagePerlinNoise(background.x / NEBULAE_NOISE_DOWNSCALE_FACTOR,
-                                background.y / NEBULAE_NOISE_DOWNSCALE_FACTOR,
-                                0, 0, 4);
-  nebulaNoise = LoadTextureFromImage(n);
-  SetTextureFilter(nebulaNoise, TEXTURE_FILTER_BILINEAR);
-  UnloadImage(n);
+  {
+#define NEBULAE_NOISE_DOWNSCALE_FACTOR 8
 
+    Image n = GenImagePerlinNoise(background.x / NEBULAE_NOISE_DOWNSCALE_FACTOR,
+                                  background.y / NEBULAE_NOISE_DOWNSCALE_FACTOR,
+                                  0, 0, 4);
+    nebulaNoise = LoadTextureFromImage(n);
+    SetTextureFilter(nebulaNoise, TEXTURE_FILTER_BILINEAR);
+    UnloadImage(n);
+
+  }
+
+  {
+    Vector4 arenaBorderColor0 = ColorNormalize(DARKBLUE);
+    Vector4 arenaBorderColor1 = ColorNormalize(BLUE);
+
+    arenaBorderShader = LoadShader(NULL, TextFormat("resources/border-%d.frag", GLSL_VERSION));
+    arenaBorderTime = GetShaderLocation(arenaBorderShader, "time");
+    SetShaderValue(arenaBorderShader,
+                   GetShaderLocation(arenaBorderShader, "borderColor0"),
+                   &arenaBorderColor0,
+                   SHADER_ATTRIB_VEC4);
+    SetShaderValue(arenaBorderShader,
+                   GetShaderLocation(arenaBorderShader, "borderColor1"),
+                   &arenaBorderColor1,
+                   SHADER_ATTRIB_VEC4);
+    SetShaderValue(arenaBorderShader,
+                   GetShaderLocation(arenaBorderShader, "resolution"),
+                   &level,
+                   SHADER_ATTRIB_VEC2);
+
+  }
+
+  {
+    Vector4 dashResetGlowColor = ColorNormalize(ColorAlpha(SKYBLUE, 0.1f));
+
+    dashResetShader = LoadShader(NULL, TextFormat("resources/dash-reset-glow-%d.frag", GLSL_VERSION));
+    dashResetShaderAlpha = GetShaderLocation(dashResetShader, "alpha");
+    SetShaderValue(dashResetShader,
+                   GetShaderLocation(dashResetShader, "glowColor"),
+                   &dashResetGlowColor,
+                   SHADER_UNIFORM_VEC4);
+  }
+
+  {
+    stars = LoadShader(NULL, TextFormat("resources/stars-%d.frag", GLSL_VERSION));
+    starsTime = GetShaderLocation(stars, "time");
+    SetShaderValue(stars,
+                   GetShaderLocation(stars, "resolution"),
+                   &background,
+                   SHADER_UNIFORM_VEC2);
+  }
+}
+
+void initTextures(void) {
   sprites = LoadTexture("resources/sprites.png");
-
-  Vector4 arenaBorderColor0 = ColorNormalize(DARKBLUE);
-  Vector4 arenaBorderColor1 = ColorNormalize(BLUE);
-
-  arenaBorderShader = LoadShader(NULL, TextFormat("resources/border-%d.frag", GLSL_VERSION));
-  arenaBorderTime = GetShaderLocation(arenaBorderShader, "time");
-  SetShaderValue(arenaBorderShader,
-                 GetShaderLocation(arenaBorderShader, "borderColor0"),
-                 &arenaBorderColor0,
-                 SHADER_ATTRIB_VEC4);
-  SetShaderValue(arenaBorderShader,
-                 GetShaderLocation(arenaBorderShader, "borderColor1"),
-                 &arenaBorderColor1,
-                 SHADER_ATTRIB_VEC4);
-  SetShaderValue(arenaBorderShader,
-                 GetShaderLocation(arenaBorderShader, "resolution"),
-                 &level,
-                 SHADER_ATTRIB_VEC2);
-
-  Vector4 dashResetGlowColor = ColorNormalize(ColorAlpha(SKYBLUE, 0.1f));
-
-  dashResetShader = LoadShader(NULL, TextFormat("resources/dash-reset-glow-%d.frag", GLSL_VERSION));
-  dashResetShaderAlpha = GetShaderLocation(dashResetShader, "alpha");
-  SetShaderValue(dashResetShader,
-                 GetShaderLocation(dashResetShader, "glowColor"),
-                 &dashResetGlowColor,
-                 SHADER_UNIFORM_VEC4);
-
-  stars = LoadShader(NULL, TextFormat("resources/stars-%d.frag", GLSL_VERSION));
-  starsTime = GetShaderLocation(stars, "time");
-  SetShaderValue(stars,
-                 GetShaderLocation(stars, "resolution"),
-                 &background,
-                 SHADER_UNIFORM_VEC2);
 
   target = LoadRenderTexture(LEVEL_WIDTH, LEVEL_HEIGHT);
 
   playerTexture = LoadRenderTexture(playerRect.width, playerRect.height);
+}
 
+void initThrusterTrails(void) {
   for (int i = 0; i < THRUSTER_TRAILS_MAX; i++) {
     thrusterTrail[i].texture = LoadRenderTexture(playerRect.width, playerRect.height);
     thrusterTrail[i].alpha = 0.0f;
     thrusterTrail[i].origin = Vector2Zero();
     thrusterTrail[i].angle = 0.0f;
   }
+}
+
+int main(void) {
+  initRaylib();
+  initMouse();
+  initPlayer();
+  initCamera();
+  initProjectiles();
+  initSoundEffects();
+  initShaders();
+  initTextures();
+  initThrusterTrails();
 
   /* fix fragTexCoord for rectangles */
   Texture2D t = { rlGetTextureIdDefault(), 1, 1, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 };
