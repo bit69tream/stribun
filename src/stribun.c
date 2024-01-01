@@ -118,6 +118,80 @@ static Rectangle playerRect = {
   .height = 19,
 };
 
+#define MAX_BOUNDING_CIRCLES 10
+
+typedef struct {
+  Rectangle textureRect;
+  int boundingCirclesLen;
+  struct {
+    Vector2 relativePosition;
+    float radius;
+  } boundingCircles[MAX_BOUNDING_CIRCLES];
+} AsteroidSprite;
+
+static AsteroidSprite asteroidSprites[] = {
+  {
+    .textureRect = {
+      .x = 34,
+      .y = 0,
+      .width = 19,
+      .height = 19,
+    },
+    .boundingCirclesLen = 1,
+    .boundingCircles = {
+      {
+        .relativePosition = {9, 9},
+        .radius = 9,
+      }
+    },
+  },
+  {
+    .textureRect = {
+      .x = 55,
+      .y = 0,
+      .width = 35,
+      .height = 25,
+    },
+    .boundingCirclesLen = 2,
+    .boundingCircles = {
+      {
+        .relativePosition = {10, 13},
+        .radius = 12,
+      },
+      {
+        .relativePosition = {24, 10},
+        .radius = 11,
+      }
+    }
+  },
+  {
+    .textureRect = {
+      .x = 91,
+      .y = 0,
+      .width = 27,
+      .height = 25,
+    },
+    .boundingCirclesLen = 1,
+    .boundingCircles = {
+      {
+        .relativePosition = {15, 13},
+        .radius = 13,
+      }
+    }
+  }
+};
+
+typedef struct {
+  AsteroidSprite sprite;
+  float angle;
+  Vector2 position;
+  Vector2 delta;
+} Asteroid;
+
+#define MAX_ASTEROIDS 10
+static Asteroid asteroids[MAX_ASTEROIDS] = {0};
+static int asteroidsLen = 0;
+
 static Vector2 mouseCursor = {0};
 static Player player = {0};
 
