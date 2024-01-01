@@ -1052,21 +1052,25 @@ void renderFinal(void) {
   } EndDrawing();
 }
 
-bool doesRectangleCollideWithACircle(Rectangle a, float angle, Circle b) {
-  (void) a;
-  (void) angle;
-  (void) b;
+bool doesRectangleCollideWithACircle(Rectangle a, float angle,
+                                     Vector2 b, float r) {
+  Vector2 aPos = {a.x, a.y};
+  Vector2 relBPos = Vector2Subtract(b, aPos);
+  Vector2 rotRelBPos = Vector2Rotate(relBPos, (-angle) * DEG2RAD);
+  Vector2 rotBPos = Vector2Add(aPos, rotRelBPos);
 
-  return false;
+  return CheckCollisionCircleRec(rotBPos, r, a);
 }
 
 void checkRegularProjectileCollision(int i) {
   for (int j = 0; j < asteroidsLen; j++) {
     for (int bj = 0; bj < asteroids[j].sprite->boundingCirclesLen; bj++) {
+      Vector2 pos = Vector2Add(asteroids[j].processedBoundingCircles[bj].position,
+                               asteroids[j].position);
+      float r = asteroids[j].processedBoundingCircles[bj].radius;
+
       if (CheckCollisionCircles(projectiles[i].origin, projectiles[i].radius,
-                                Vector2Add(asteroids[j].processedBoundingCircles[bj].position,
-                                           asteroids[j].position),
-                                asteroids[j].processedBoundingCircles[bj].radius)) {
+                                pos, r)) {
         projectiles[i].willBeDestroyed = true;
         return;
       }
@@ -1075,7 +1079,24 @@ void checkRegularProjectileCollision(int i) {
 }
 
 void checkSquaredProjectileCollision(int i) {
-  (void) i;
+  Rectangle proj = {
+    .x = projectiles[i].origin.x - (projectiles[i].size.x / 2),
+    .y = projectiles[i].origin.y - (projectiles[i].size.y / 2),
+  };
+
+  for (int j = 0; j < asteroidsLen; j++) {
+    for (int bj = 0; bj < asteroids[j].sprite->boundingCirclesLen; bj++) {
+      Vector2 pos = Vector2Add(asteroids[j].processedBoundingCircles[bj].position,
+                               asteroids[j].position);
+      float r = asteroids[j].processedBoundingCircles[bj].radius;
+
+      if (doesRectangleCollideWithACircle(proj, projectiles[i].angle,
+                                          pos, r)) {
+        projectiles[i].willBeDestroyed = true;
+        return;
+      }
+    }
+  }
 }
 
 void updateProjectiles(void) {
