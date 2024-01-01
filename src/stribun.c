@@ -102,6 +102,7 @@ static RenderTexture2D target = {0};
 
 static Texture2D nebulaNoise = {0};
 
+#define SPRITES_SCALE 3.5
 static Texture2D sprites = {0};
 
 static Rectangle mouseCursorRect = {
@@ -129,7 +130,7 @@ typedef struct {
   } boundingCircles[MAX_BOUNDING_CIRCLES];
 } AsteroidSprite;
 
-static AsteroidSprite asteroidSprites[] = {
+static const AsteroidSprite asteroidSprites[] = {
   {
     .textureRect = {
       .x = 34,
@@ -182,7 +183,7 @@ static AsteroidSprite asteroidSprites[] = {
 };
 
 typedef struct {
-  AsteroidSprite sprite;
+  const AsteroidSprite * sprite;
   float angle;
   Vector2 position;
   Vector2 delta;
@@ -674,7 +675,6 @@ void renderPlayerTexture(void) {
   t->origin = player.position;
 }
 
-#define PLAYER_SCALE 3.5
 void renderPlayer(void) {
   DrawTexturePro(playerTexture.texture,
                  (Rectangle) {
@@ -686,12 +686,12 @@ void renderPlayer(void) {
                  (Rectangle) {
                    .x = player.position.x,
                    .y = player.position.y,
-                   .width = playerTexture.texture.width * PLAYER_SCALE,
-                   .height = playerTexture.texture.height * PLAYER_SCALE,
+                   .width = playerTexture.texture.width * SPRITES_SCALE,
+                   .height = playerTexture.texture.height * SPRITES_SCALE,
                  },
                  (Vector2) {
-                   .x = (playerRect.width * PLAYER_SCALE) / 2,
-                   .y = (playerRect.height * PLAYER_SCALE) / 2,
+                   .x = (playerRect.width * SPRITES_SCALE) / 2,
+                   .y = (playerRect.height * SPRITES_SCALE) / 2,
                  },
                  playerLookingAngle(),
                  WHITE);
@@ -716,12 +716,12 @@ void renderThrusterTrails(void) {
                    (Rectangle) {
                      .x = thrusterTrail[i].origin.x,
                      .y = thrusterTrail[i].origin.y,
-                     .width = thrusterTrail[i].texture.texture.width * PLAYER_SCALE,
-                     .height = thrusterTrail[i].texture.texture.height * PLAYER_SCALE,
+                     .width = thrusterTrail[i].texture.texture.width * SPRITES_SCALE,
+                     .height = thrusterTrail[i].texture.texture.height * SPRITES_SCALE,
                    },
                    (Vector2) {
-                     .x = (playerRect.width * PLAYER_SCALE) / 2,
-                     .y = (playerRect.height * PLAYER_SCALE) / 2,
+                     .x = (playerRect.width * SPRITES_SCALE) / 2,
+                     .y = (playerRect.height * SPRITES_SCALE) / 2,
                    },
                    thrusterTrail[i].angle,
                    Fade(WHITE, thrusterTrail[i].alpha));
@@ -758,11 +758,13 @@ void renderMouseCursor(void) {
 
 void renderProjectiles(void) {
   for (int i = 0; i < PROJECTILES_MAX; i++) {
+    float radiusScale = projectiles[i].willBeDestroyed ? 1.5f : 1.0f;
+
     switch (projectiles[i].type) {
     case PROJECTILE_NONE: break;
     case PROJECTILE_REGULAR: {
       DrawCircleV(projectiles[i].origin,
-                  projectiles[i].radius,
+                  projectiles[i].radius * radiusScale,
                   BLUE);
 
       if (projectiles[i].willBeDestroyed) {
@@ -777,8 +779,8 @@ void renderProjectiles(void) {
       Rectangle shape = (Rectangle) {
         .x = projectiles[i].origin.x,
         .y = projectiles[i].origin.y,
-        .width = projectiles[i].size.x,
-        .height = projectiles[i].size.y,
+        .width = projectiles[i].size.x * radiusScale,
+        .height = projectiles[i].size.y * radiusScale,
       };
 
       DrawRectanglePro(shape,
@@ -820,6 +822,25 @@ void renderArenaBorder(void) {
   } EndShaderMode();
 }
 
+void renderAsteroids(void) {
+  for (int i = 0; i < asteroidsLen; i++) {
+    DrawTexturePro(sprites,
+                   asteroids[i].sprite->textureRect,
+                   (Rectangle) {
+                     .x = asteroids[i].position.x,
+                     .y = asteroids[i].position.y,
+                     .width = asteroids[i].sprite->textureRect.width * SPRITES_SCALE,
+                     .height = asteroids[i].sprite->textureRect.height * SPRITES_SCALE,
+                   },
+                   (Vector2) {
+                     .x = (asteroids[i].sprite->textureRect.width * SPRITES_SCALE) / 2,
+                     .y = (asteroids[i].sprite->textureRect.height * SPRITES_SCALE) / 2,
+                   },
+                   asteroids[i].angle,
+                   WHITE);
+  }
+}
+
 void renderPhase1(void) {
   renderPlayerTexture();
 
@@ -828,9 +849,14 @@ void renderPhase1(void) {
 
     renderBackground();
     renderArenaBorder();
+
+    renderAsteroids();
+
     renderThrusterTrails();
-    renderProjectiles();
     renderPlayer();
+
+    renderProjectiles();
+
     renderMouseCursor();
   } EndTextureMode();
 }
@@ -1010,7 +1036,22 @@ void initProjectiles(void) {
 }
 
 void initAsteroids(void) {
-  asteroidsLen = 2;
+  asteroidsLen = GetRandomValue(0, MAX_ASTEROIDS - 1);
+
+  const int maxAsteroidSprites = (sizeof(asteroidSprites) / sizeof(asteroidSprites[0]));
+
+  for (int i = 0; i < asteroidsLen; i++) {
+    int asteroidSpriteIndex = GetRandomValue(0, maxAsteroidSprites - 1);
+
+    int w = (int)asteroidSprites[asteroidSpriteIndex].textureRect.width;
+    int h = (int)asteroidSprites[asteroidSpriteIndex].textureRect.height;
+
+    asteroids[i].sprite = &asteroidSprites[asteroidSpriteIndex];
+    asteroids[i].angle = (float)GetRandomValue(0, 360);
+    asteroids[i].position.x = (float)GetRandomValue(w, LEVEL_WIDTH - w);
+    asteroids[i].position.y = (float)GetRandomValue(h, LEVEL_WIDTH - h);
+    asteroids[i].delta = Vector2Zero();
+  }
 }
 
 void initSoundEffects(void) {
@@ -1105,6 +1146,7 @@ int main(void) {
   initShaders();
   initTextures();
   initThrusterTrails();
+  initAsteroids();
 
   /* fix fragTexCoord for rectangles */
   Texture2D t = { rlGetTextureIdDefault(), 1, 1, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 };
