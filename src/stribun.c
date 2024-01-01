@@ -270,6 +270,39 @@ float angleBetweenPoints(Vector2 p1, Vector2 p2) {
   return alpha;
 }
 
+void checkForCollisionsBetweenAsteroids(int i, int k) {
+  for (int bi = 0; bi < asteroids[i].sprite->boundingCirclesLen; bi++) {
+    Vector2 ipos = Vector2Add(asteroids[i].position, asteroids[i].processedBoundingCircles[bi].position);
+
+    for (int bk = 0; bk < asteroids[k].sprite->boundingCirclesLen; bk++) {
+      Vector2 kpos = Vector2Add(asteroids[k].position, asteroids[k].processedBoundingCircles[bk].position);
+
+      float distance = Vector2Distance(kpos, ipos);
+      float radiusSum =
+        (asteroids[k].processedBoundingCircles[bk].radius +
+         asteroids[i].processedBoundingCircles[bi].radius);
+
+      if (distance < radiusSum) {
+        float angle = angleBetweenPoints(kpos, ipos) *
+          DEG2RAD;
+
+        float offsetDistance = distance - radiusSum;
+        Vector2 offset = Vector2Rotate((Vector2) {0, offsetDistance}, angle);
+        asteroids[i].position = Vector2Add(asteroids[i].position, offset);
+
+        Vector2 deltaDiff = {
+          .x = fabsf(asteroids[k].delta.x - asteroids[i].delta.x),
+          .y = fabsf(asteroids[k].delta.y - asteroids[i].delta.y),
+        };
+
+        asteroids[i].delta = Vector2Rotate(asteroids[i].delta, 180 * DEG2RAD);
+        asteroids[k].delta = Vector2Rotate(asteroids[k].delta, 180 * DEG2RAD);
+        return;
+      }
+    }
+  }
+}
+
 void updateAsteroids(void) {
   for (int i = 0; i < asteroidsLen; i++) {
     bool collides = false;
@@ -279,29 +312,7 @@ void updateAsteroids(void) {
         continue;
       }
 
-      for (int bi = 0; bi < asteroids[i].sprite->boundingCirclesLen; bi++) {
-        for (int bk = 0; bk < asteroids[k].sprite->boundingCirclesLen; bk++) {
-          float distance = Vector2Distance(Vector2Add(asteroids[k].position, asteroids[k].processedBoundingCircles[bk].position),
-                                           Vector2Add(asteroids[i].position, asteroids[i].processedBoundingCircles[bi].position));
-          float radiusSum =
-            (asteroids[k].processedBoundingCircles[bk].radius +
-             asteroids[i].processedBoundingCircles[bi].radius);
-
-          if (distance < radiusSum) {
-            printf("collision!!!\n");
-
-            Vector2 deltaDiff = {
-              .x = fabsf(asteroids[k].delta.x - asteroids[i].delta.x),
-              .y = fabsf(asteroids[k].delta.y - asteroids[i].delta.y),
-            };
-
-            asteroids[i].delta = Vector2Subtract(asteroids[i].delta, deltaDiff);
-            asteroids[k].delta = Vector2Add(asteroids[k].delta, deltaDiff);
-            goto end;
-          }
-        }
-      }
-    end:;
+      checkForCollisionsBetweenAsteroids(i, k);
     }
 
     asteroids[i].position = Vector2Add(asteroids[i].position, asteroids[i].delta);
