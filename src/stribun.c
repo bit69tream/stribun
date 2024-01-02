@@ -104,6 +104,19 @@ static RenderTexture2D target = {0};
 
 static Texture2D nebulaNoise = {0};
 
+#define BIG_ASS_ASTEROID_SCALE 15
+
+static Rectangle bigAssAsteroidRect = {
+  .x = 121,
+  .y = 0,
+  .width = 35,
+  .height = 29,
+};
+static Vector2 bigAssAsteroidPosition = {0};
+static float bigAssAsteroidAngle = 0;
+static Vector2 bigAssAsteroidPositionDelta = {0};
+static float bigAssAsteroidAngleDelta = 0;
+
 #define SPRITES_SCALE 3.5
 static Texture2D sprites = {0};
 
@@ -991,7 +1004,7 @@ void renderAsteroids(void) {
   for (int i = 0; i < asteroidsLen; i++) {
     Vector2 center = {
       .x = (asteroids[i].sprite->textureRect.width * SPRITES_SCALE) / 2,
-        .y = (asteroids[i].sprite->textureRect.height * SPRITES_SCALE) / 2,
+      .y = (asteroids[i].sprite->textureRect.height * SPRITES_SCALE) / 2,
     };
 
     DrawTexturePro(sprites,
@@ -1008,6 +1021,25 @@ void renderAsteroids(void) {
   }
 }
 
+void renderBackgroundAsteroid(void) {
+  Vector2 center = {
+    .x = (bigAssAsteroidRect.width * BIG_ASS_ASTEROID_SCALE) / 2,
+    .y = (bigAssAsteroidRect.height * BIG_ASS_ASTEROID_SCALE) / 2,
+  };
+
+  DrawTexturePro(sprites,
+                 bigAssAsteroidRect,
+                 (Rectangle) {
+                   .x = bigAssAsteroidPosition.x,
+                   .y = bigAssAsteroidPosition.y,
+                   .width = bigAssAsteroidRect.width * BIG_ASS_ASTEROID_SCALE,
+                   .height = bigAssAsteroidRect.height * BIG_ASS_ASTEROID_SCALE,
+                 },
+                 center,
+                 bigAssAsteroidAngle,
+                 GRAY);
+}
+
 void renderPhase1(void) {
   renderPlayerTexture();
 
@@ -1015,6 +1047,7 @@ void renderPhase1(void) {
     ClearBackground(BLACK);
 
     renderBackground();
+    renderBackgroundAsteroid();
     renderArenaBorder();
 
     renderAsteroids();
@@ -1347,6 +1380,12 @@ void initThrusterTrails(void) {
   }
 }
 
+void updateBackgroundAsteroid(void) {
+  bigAssAsteroidPosition = Vector2Add(bigAssAsteroidPosition,
+                                      bigAssAsteroidPositionDelta);
+  bigAssAsteroidAngle += bigAssAsteroidAngleDelta;
+}
+
 void UpdateDrawFrame(void) {
   if (IsKeyPressed(KEY_R)) {
     initShaders();
@@ -1357,6 +1396,7 @@ void UpdateDrawFrame(void) {
   updateProjectiles();
   updateThrusterTrails();
   updateAsteroids();
+  updateBackgroundAsteroid();
 
   updateMouse();
   updatePlayerPosition();
@@ -1371,6 +1411,22 @@ void UpdateDrawFrame(void) {
   time += GetFrameTime();
 }
 
+float randomFloat(void) {
+  return (float)rand() / (float)RAND_MAX;
+}
+
+void initBackgroundAsteroid(void) {
+  bigAssAsteroidPosition.x = (float) GetRandomValue(0, LEVEL_WIDTH);
+  bigAssAsteroidPosition.y = (float) GetRandomValue(0, LEVEL_HEIGHT);
+
+  bigAssAsteroidAngle = (float) GetRandomValue(0, 360);
+
+  bigAssAsteroidPositionDelta.x = (float)GetRandomValue(-1, 1) * 0.05f;
+  bigAssAsteroidPositionDelta.y = (float)GetRandomValue(-1, 1) * 0.05f;
+
+  bigAssAsteroidAngleDelta = (float)GetRandomValue(-1, 1) * 0.005f;
+}
+
 int main(void) {
   initRaylib();
   initMouse();
@@ -1382,6 +1438,7 @@ int main(void) {
   initTextures();
   initThrusterTrails();
   initAsteroids();
+  initBackgroundAsteroid();
 
   /* fix fragTexCoord for rectangles */
   Texture2D t = { rlGetTextureIdDefault(), 1, 1, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 };
