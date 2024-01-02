@@ -457,6 +457,33 @@ void updateBossMarine(void) {
     bossMarine.processedBoundingCircles[i].position.x *= bossMarine.horizontalFlip;
   }
 
+  for (int i = 0; i < BOSS_MARINE_BOUNDING_CIRCLES; i++) {
+    Vector2 bcPos = Vector2Add(bossMarine.processedBoundingCircles[i].position,
+                               bossMarine.position);
+    float r = bossMarine.processedBoundingCircles[i].radius;
+
+    for (int ai = 0; ai < asteroidsLen; ai++) {
+      for (int abi = 0; abi < asteroids[ai].sprite->boundingCirclesLen; abi++) {
+        Vector2 pos =
+          Vector2Add(asteroids[ai].processedBoundingCircles[abi].position,
+                     asteroids[ai].position);
+
+        float distance = Vector2Distance(pos, bcPos);
+        float radiusSum =
+          (asteroids[ai].processedBoundingCircles[abi].radius + r);
+
+        if (distance < radiusSum) {
+          float angle = angleBetweenPoints(bcPos, asteroids[ai].position) * DEG2RAD;
+
+          float offsetDistance = distance - radiusSum;
+          Vector2 asteroidOffset = Vector2Rotate((Vector2) {0, offsetDistance}, angle);
+
+          asteroids[ai].position = Vector2Add(asteroids[ai].position, asteroidOffset);
+        }
+      }
+    }
+  }
+
   Vector2 weaponOffset = (Vector2) {
     .x = bossMarine.horizontalFlip * bossMarineWeaponOffset.x,
     .y = bossMarineWeaponOffset.y,
