@@ -78,7 +78,7 @@ typedef struct {
   bool isInvincible;
 } Player;
 
-#define MAX_BOUNDING_CIRCLES 10
+#define MAX_BOUNDING_CIRCLES 3
 
 typedef struct {
   Vector2 position;
@@ -118,7 +118,8 @@ typedef struct {
   Circle processedBoundingCircles[BOSS_MARINE_BOUNDING_CIRCLES];
   Vector2 bulletOrigin;
   float weaponAngle;
-  float idealWeaponAngle;
+
+  float walkingDirection;
 } BossMarine;
 
 BossMarine bossMarine = {0};
@@ -446,17 +447,7 @@ float playerLookingAngle(void) {
   return angle;
 }
 
-void updateBossMarine(void) {
-  bossMarine.horizontalFlip =
-    (player.position.x < bossMarine.position.x)
-    ? -1
-    : 1;
-
-  for (int i = 0; i < BOSS_MARINE_BOUNDING_CIRCLES; i++) {
-    bossMarine.processedBoundingCircles[i] = bossMarine.boundingCircles[i];
-    bossMarine.processedBoundingCircles[i].position.x *= bossMarine.horizontalFlip;
-  }
-
+void bossMarineCheckCollisions(void) {
   for (int i = 0; i < BOSS_MARINE_BOUNDING_CIRCLES; i++) {
     Vector2 bcPos = Vector2Add(bossMarine.processedBoundingCircles[i].position,
                                bossMarine.position);
@@ -483,27 +474,74 @@ void updateBossMarine(void) {
       }
     }
   }
+}
 
+void bossMarineUpdateWeapon(void) {
   Vector2 weaponOffset = (Vector2) {
     .x = bossMarine.horizontalFlip * bossMarineWeaponOffset.x,
     .y = bossMarineWeaponOffset.y,
   };
 
-  bossMarine.idealWeaponAngle =
+  bossMarine.weaponAngle =
     angleBetweenPoints(Vector2Add(bossMarine.position,
                                   weaponOffset),
                        player.position) - 90;
   if (bossMarine.horizontalFlip == -1) {
-    bossMarine.idealWeaponAngle += 180;
+    bossMarine.weaponAngle += 180;
   }
-
-  bossMarine.weaponAngle = Lerp(bossMarine.weaponAngle, bossMarine.idealWeaponAngle, 0.1f);
 
   Vector2 bulletOrigin = Vector2Rotate((Vector2) {
       .x = bossMarine.horizontalFlip * ((bossMarineWeaponRect.width / 2) * SPRITES_SCALE),
       .y = -6 * SPRITES_SCALE,
     }, bossMarine.weaponAngle * DEG2RAD);
   bossMarine.bulletOrigin = Vector2Add(weaponOffset, bulletOrigin);
+}
+
+void bossMarineWalk(void) {
+  float playerBossAngle = angleBetweenPoints(player.position,
+                                             bossMarine.position);
+#define BOSS_MARINE_SPEED 2
+#define BOSS_MARINE_MIN_PLAYER_DISTANCE 200
+#define BOSS_MARINE_MAX_PLAYER_DISTANCE 400
+
+  float playerBossDistance = Vector2Distance(player.position,
+                                             bossMarine.position);
+
+  Vector2 delta = Vector2Rotate((Vector2) {0, -BOSS_MARINE_SPEED},
+                                playerBossAngle * DEG2RAD);
+
+  if (playerBossDistance < BOSS_MARINE_MIN_PLAYER_DISTANCE) {
+    bossMarine.position = Vector2Add(bossMarine.position, delta);
+  } else if (playerBossDistance > BOSS_MARINE_MAX_PLAYER_DISTANCE) {
+    bossMarine.position = Vector2Add(bossMarine.position, Vector2Scale(delta, -1));
+  } else {
+    float angle = bossMarine.walkingDirection * BOSS_MARINE_SPEED;
+    Vector2 diff = Vector2Subtract(bossMarine.position, player.position);
+    diff = Vector2Rotate(diff, angle * DEG2RAD);
+    bossMarine.position = Vector2Lerp(bossMarine.position, Vector2Add(diff, player.position), 0.1f);
+  }
+}
+
+void updateBossMarine(void) {
+  bossMarine.horizontalFlip =
+    (player.position.x < bossMarine.position.x)
+    ? -1
+    : 1;
+
+  for (int i = 0; i < BOSS_MARINE_BOUNDING_CIRCLES; i++) {
+    bossMarine.processedBoundingCircles[i] = bossMarine.boundingCircles[i];
+    bossMarine.processedBoundingCircles[i].position.x *= bossMarine.horizontalFlip;
+  }
+
+  bossMarineCheckCollisions();
+  bossMarineUpdateWeapon();
+  bossMarineWalk();
+
+  Vector2 minPos = Vector2Scale((Vector2){bossMarineRect.width / 2, bossMarineRect.width / 2},
+                                SPRITES_SCALE);
+  Vector2 maxPos = Vector2Subtract((Vector2) {LEVEL_WIDTH, LEVEL_HEIGHT},
+                                   minPos);
+  bossMarine.position = Vector2Clamp(bossMarine.position, minPos, maxPos);
 }
 
 void updateMouse(void) {
@@ -1182,10 +1220,6 @@ void renderBoss(void) {
                  weaponCenter,
                  bossMarine.weaponAngle,
                  WHITE);
-
-  DrawPixelV(Vector2Add(bossMarine.position,
-                        bossMarine.bulletOrigin),
-             RED);
 }
 
 void renderPhase1(void) {
@@ -1603,6 +1637,7 @@ void initBossMarine(void) {
     },
     .weaponAngle = 0,
     .horizontalFlip = 1,
+    .walkingDirection = 1,
   };
 
   for (int i = 0; i < BOSS_MARINE_BOUNDING_CIRCLES; i++) {
