@@ -40,6 +40,9 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
+#define SPRITES_SCALE 3.5
+static Texture2D sprites = {0};
+
 typedef enum {
   DIRECTION_UP    = 0b0001,
   DIRECTION_DOWN  = 0b0010,
@@ -47,7 +50,7 @@ typedef enum {
   DIRECTION_RIGHT = 0b1000,
 } Direction;
 
-#define MAX_PLAYER_HEALTH 100
+#define MAX_PLAYER_HEALTH 10
 
 #define PLAYER_HITBOX_RADIUS 16
 
@@ -74,6 +77,34 @@ typedef struct {
   bool isInvincible;
 } Player;
 
+static Rectangle bossMarineRect = {
+  .x = 0,
+  .y = 35,
+  .width = 71,
+  .height = 71,
+};
+
+static Rectangle bossMarineWeaponRect = {
+  .x = 76,
+  .y = 61,
+  .width = 85,
+  .height = 37,
+};
+
+static Vector2 bossMarineWeaponOffset = {
+  .x = 14 * SPRITES_SCALE,
+  .y = 6 * SPRITES_SCALE,
+};
+
+#define BOSS_MARINE_MAX_HEALTH 512
+
+typedef struct {
+  Vector2 position;
+  int health;
+} BossMarine;
+
+BossMarine bossMarine = {0};
+
 #define BACKGROUND_PARALLAX_OFFSET 16
 
 static const int screenWidth = 1280;
@@ -87,8 +118,8 @@ static int starsTime = 0;
 
 static Camera2D camera = {0};
 
-#define LEVEL_WIDTH 2048
-#define LEVEL_HEIGHT 2048
+#define LEVEL_WIDTH 1536
+#define LEVEL_HEIGHT 1536
 
 static const Vector2 level = {
   .x = LEVEL_WIDTH,
@@ -116,9 +147,6 @@ static Vector2 bigAssAsteroidPosition = {0};
 static float bigAssAsteroidAngle = 0;
 static Vector2 bigAssAsteroidPositionDelta = {0};
 static float bigAssAsteroidAngleDelta = 0;
-
-#define SPRITES_SCALE 3.5
-static Texture2D sprites = {0};
 
 static Rectangle mouseCursorRect = {
   .x = 0,
@@ -315,7 +343,7 @@ void checkForCollisionsBetweenAsteroids(int i, int k) {
   }
 }
 
-void checkForCollisionsBetweenAnAsteroidsAndBorders(void) {
+void checkForCollisionsBetweenAsteroidsAndBorders(void) {
   Vector2 normalDown = {0, 1};
   Vector2 normalUp = {0, -1};
   Vector2 normalRight = {1, 0};
@@ -330,18 +358,22 @@ void checkForCollisionsBetweenAnAsteroidsAndBorders(void) {
 
       if ((pos.y - r) <= 0) {
         asteroids[i].delta = Vector2Reflect(asteroids[i].delta, normalDown);
+        break;
       }
 
       if ((pos.x - r) <= 0) {
         asteroids[i].delta = Vector2Reflect(asteroids[i].delta, normalRight);
+        break;
       }
 
       if ((pos.y + r) >= LEVEL_HEIGHT - 1) {
         asteroids[i].delta = Vector2Reflect(asteroids[i].delta, normalUp);
+        break;
       }
 
       if ((pos.x + r) >= LEVEL_WIDTH - 1) {
         asteroids[i].delta = Vector2Reflect(asteroids[i].delta, normalLeft);
+        break;
       }
     }
   }
@@ -356,8 +388,6 @@ void updateAsteroids(void) {
 
       checkForCollisionsBetweenAsteroids(i, k);
     }
-
-    checkForCollisionsBetweenAnAsteroidsAndBorders();
 
     asteroids[i].position = Vector2Add(asteroids[i].position, asteroids[i].delta);
 
@@ -376,6 +406,8 @@ void updateAsteroids(void) {
         asteroids[i].sprite->boundingCircles[j].radius * SPRITES_SCALE;
     }
   }
+
+  checkForCollisionsBetweenAsteroidsAndBorders();
 }
 
 Projectile *push_projectile(void) {
@@ -1040,6 +1072,42 @@ void renderBackgroundAsteroid(void) {
                  GRAY);
 }
 
+void renderBoss(void) {
+  Vector2 center = {
+    .x = (bossMarineRect.width * SPRITES_SCALE) / 2,
+    .y = (bossMarineRect.height * SPRITES_SCALE) / 2,
+  };
+
+  DrawTexturePro(sprites,
+                 bossMarineRect,
+                 (Rectangle) {
+                   .x = bossMarine.position.x,
+                   .y = bossMarine.position.y,
+                   .width = bossMarineRect.width * SPRITES_SCALE,
+                   .height = bossMarineRect.height * SPRITES_SCALE,
+                 },
+                 center,
+                 0,
+                 WHITE);
+
+  Vector2 weaponCenter = {
+    .x = (bossMarineWeaponRect.width * SPRITES_SCALE) / 2,
+    .y = (bossMarineWeaponRect.height * SPRITES_SCALE) / 2,
+  };
+
+  DrawTexturePro(sprites,
+                 bossMarineWeaponRect,
+                 (Rectangle) {
+                   .x = bossMarine.position.x + bossMarineWeaponOffset.x,
+                   .y = bossMarine.position.y + bossMarineWeaponOffset.y,
+                   .width = bossMarineWeaponRect.width * SPRITES_SCALE,
+                   .height = bossMarineWeaponRect.height * SPRITES_SCALE,
+                 },
+                 weaponCenter,
+                 0,
+                 WHITE);
+}
+
 void renderPhase1(void) {
   renderPlayerTexture();
 
@@ -1051,6 +1119,8 @@ void renderPhase1(void) {
     renderArenaBorder();
 
     renderAsteroids();
+
+    renderBoss();
 
     renderThrusterTrails();
     renderPlayer();
@@ -1263,6 +1333,7 @@ void initPlayer(void) {
     },
     .isInvincible = false,
     .health = MAX_PLAYER_HEALTH,
+    .bulletSpread = 1,
   };
 }
 
@@ -1427,6 +1498,16 @@ void initBackgroundAsteroid(void) {
   bigAssAsteroidAngleDelta = (float)GetRandomValue(-1, 1) * 0.005f;
 }
 
+void initBossMarine(void) {
+  bossMarine = (BossMarine) {
+    .position = {
+      .x = LEVEL_WIDTH / 2,
+      .y = LEVEL_HEIGHT / 2,
+    },
+    .health = BOSS_MARINE_MAX_HEALTH,
+  };
+};
+
 int main(void) {
   initRaylib();
   initMouse();
@@ -1439,6 +1520,8 @@ int main(void) {
   initThrusterTrails();
   initAsteroids();
   initBackgroundAsteroid();
+
+  initBossMarine();
 
   /* fix fragTexCoord for rectangles */
   Texture2D t = { rlGetTextureIdDefault(), 1, 1, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 };
