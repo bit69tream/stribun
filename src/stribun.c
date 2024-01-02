@@ -51,7 +51,7 @@ typedef enum {
   DIRECTION_RIGHT = 0b1000,
 } Direction;
 
-#define MAX_PLAYER_HEALTH 10
+#define MAX_PLAYER_HEALTH 8
 
 #define PLAYER_HITBOX_RADIUS 16
 
@@ -174,6 +174,17 @@ static Rectangle mouseCursorRect = {
   .height = 15,
 };
 
+static Rectangle playerHealthOverlayMaskRect = {
+  .x = 16,
+  .y = 0,
+  .width = 15,
+  .height = 16,
+};
+
+static Shader playerHealthOverlayShader = {0};
+static int playerHealthOverlayHealth = 0;
+static Texture2D playerHealthMaskTexture = {0};
+
 static Rectangle playerRect = {
   .x = 0,
   .y = 16,
@@ -290,6 +301,9 @@ typedef struct {
   float destructionTimer;
 
   bool isHurtfulForPlayer;
+  bool isHurtfulForBoss;
+
+  int damage;
 } Projectile;
 
 #define PROJECTILES_MAX 1024
@@ -523,6 +537,11 @@ void bossMarineWalk(void) {
 }
 
 void updateBossMarine(void) {
+  if (bossMarine.health <= 0) {
+    printf("dead\n");
+    return;
+  }
+
   bossMarine.horizontalFlip =
     (player.position.x < bossMarine.position.x)
     ? -1
@@ -605,6 +624,7 @@ void tryDashing(void) {
 #define PLAYER_FIRE_COOLDOWN 0.15f
 #define PLAYER_PROJECTILE_RADIUS 9
 #define PLAYER_PROJECTILE_SPEED 30.0f
+#define PLAYER_PROJECTILE_BASE_DAMAGE 2
 
 void tryFiringAShot(void) {
   if (!IsMouseButtonDown(MOUSE_BUTTON_LEFT) ||
@@ -626,6 +646,9 @@ void tryFiringAShot(void) {
     /* .type = PROJECTILE_REGULAR, */
 
     .isHurtfulForPlayer = false,
+    .isHurtfulForBoss = true,
+
+    .damage = PLAYER_PROJECTILE_BASE_DAMAGE,
 
     .origin = Vector2Add(player.position, Vector2Scale(lookingDirection, 35)),
     /* .radius = PLAYER_PROJECTILE_RADIUS, */
@@ -764,6 +787,7 @@ void renderBackground(void) {
 }
 
 static RenderTexture2D playerTexture = {0};
+static RenderTexture2D playerTexture1 = {0};
 
 #define THRUSTERS_BOTTOM 0b0001
 #define THRUSTERS_TOP    0b0010
@@ -951,6 +975,35 @@ static int dashResetShaderAlpha = 0;
 void renderPlayerTexture(void) {
   int thrusters = whichThrustersToUse();
 
+  BeginTextureMode(playerTexture1); {
+    ClearBackground(BLANK);
+
+    DrawTexturePro(sprites,
+                   playerRect,
+                   (Rectangle) {
+                     .x = 0,
+                     .y = 0,
+                     .width = playerRect.width,
+                     .height = playerRect.height,
+                   },
+                   Vector2Zero(),
+                   0,
+                   WHITE);
+
+    float health = (float)player.health / (float)MAX_PLAYER_HEALTH;
+
+    SetShaderValue(playerHealthOverlayShader,
+                   playerHealthOverlayHealth,
+                   &health,
+                   SHADER_UNIFORM_FLOAT);
+
+    BeginShaderMode(playerHealthOverlayShader); {
+      DrawTexture(playerHealthMaskTexture,
+                  1, 1,
+                  WHITE);
+    } EndShaderMode();
+  } EndTextureMode();
+
   BeginTextureMode(playerTexture); {
     ClearBackground(BLANK);
 
@@ -960,17 +1013,9 @@ void renderPlayerTexture(void) {
                    SHADER_UNIFORM_FLOAT);
 
     BeginShaderMode(dashResetShader); {
-      DrawTexturePro(sprites,
-                     playerRect,
-                     (Rectangle) {
-                       .x = 0,
-                       .y = 0,
-                       .width = playerRect.width,
-                       .height = playerRect.height,
-                     },
-                     Vector2Zero(),
-                     0,
-                     WHITE);
+      DrawTexture(playerTexture1.texture,
+                  0, 0,
+                  WHITE);
     } EndShaderMode();
 
     renderThrusters(thrusters);
@@ -1003,7 +1048,7 @@ void renderPlayer(void) {
                    .x = 0,
                    .y = 0,
                    .width = playerTexture.texture.width,
-                   .height = -playerTexture.texture.height,
+                   .height = playerTexture.texture.height,
                  },
                  (Rectangle) {
                    .x = player.position.x,
@@ -1286,17 +1331,43 @@ bool doesRectangleCollideWithACircle(Rectangle a, float angle,
 }
 
 void checkRegularProjectileCollision(int i) {
+  Vector2 proj = projectiles[i].origin;
+  float radius = projectiles[i].radius;
+
   for (int j = 0; j < asteroidsLen; j++) {
     for (int bj = 0; bj < asteroids[j].sprite->boundingCirclesLen; bj++) {
       Vector2 pos = Vector2Add(asteroids[j].processedBoundingCircles[bj].position,
                                asteroids[j].position);
       float r = asteroids[j].processedBoundingCircles[bj].radius;
 
-      if (CheckCollisionCircles(projectiles[i].origin, projectiles[i].radius,
-                                pos, r)) {
+      if (CheckCollisionCircles(proj, radius, pos, r)) {
         projectiles[i].willBeDestroyed = true;
         return;
       }
+    }
+  }
+
+  if (projectiles[i].isHurtfulForPlayer &&
+      CheckCollisionCircles(proj, radius,
+                            player.position, PLAYER_HITBOX_RADIUS)) {
+    projectiles[i].willBeDestroyed = true;
+    player.health -= projectiles[i].damage;
+    return;
+  }
+
+  if (!projectiles[i].isHurtfulForBoss) {
+    return;
+  }
+
+  for (int j = 0; j < BOSS_MARINE_BOUNDING_CIRCLES; j++) {
+    Vector2 pos = Vector2Add(bossMarine.position,
+                             bossMarine.processedBoundingCircles[j].position);
+    float r = bossMarine.processedBoundingCircles[j].radius;
+
+    if (CheckCollisionCircles(proj, radius, pos, r)) {
+      projectiles[i].willBeDestroyed = true;
+      bossMarine.health -= projectiles[i].damage;
+      return;
     }
   }
 }
@@ -1306,6 +1377,7 @@ void checkSquaredProjectileCollision(int i) {
     .x = projectiles[i].origin.x - (projectiles[i].size.x / 2),
     .y = projectiles[i].origin.y - (projectiles[i].size.y / 2),
   };
+  float angle = projectiles[i].angle;
 
   for (int j = 0; j < asteroidsLen; j++) {
     for (int bj = 0; bj < asteroids[j].sprite->boundingCirclesLen; bj++) {
@@ -1313,11 +1385,36 @@ void checkSquaredProjectileCollision(int i) {
                                asteroids[j].position);
       float r = asteroids[j].processedBoundingCircles[bj].radius;
 
-      if (doesRectangleCollideWithACircle(proj, projectiles[i].angle,
+      if (doesRectangleCollideWithACircle(proj, angle,
                                           pos, r)) {
         projectiles[i].willBeDestroyed = true;
         return;
       }
+    }
+  }
+
+  if (projectiles[i].isHurtfulForPlayer &&
+      doesRectangleCollideWithACircle(proj, angle,
+                                      player.position, PLAYER_HITBOX_RADIUS)) {
+    projectiles[i].willBeDestroyed = true;
+    player.health -= projectiles[i].damage;
+    return;
+  }
+
+  if (!projectiles[i].isHurtfulForBoss) {
+    return;
+  }
+
+  for (int j = 0; j < BOSS_MARINE_BOUNDING_CIRCLES; j++) {
+    Vector2 pos = Vector2Add(bossMarine.position,
+                             bossMarine.processedBoundingCircles[j].position);
+    float r = bossMarine.processedBoundingCircles[j].radius;
+
+    if (doesRectangleCollideWithACircle(proj, angle,
+                                        pos, r)) {
+      projectiles[i].willBeDestroyed = true;
+      bossMarine.health -= projectiles[i].damage;
+      return;
     }
   }
 }
@@ -1546,6 +1643,29 @@ void initShaders(void) {
                    &background,
                    SHADER_UNIFORM_VEC2);
   }
+
+  {
+    playerHealthOverlayShader = LoadShader(NULL, TextFormat("resources/health-overlay-%d.frag", GLSL_VERSION));
+
+    Vector4 good = ColorNormalize(DARKGREEN);
+    SetShaderValue(playerHealthOverlayShader,
+                   GetShaderLocation(playerHealthOverlayShader, "goodColor"),
+                   &good,
+                   SHADER_UNIFORM_VEC4);
+
+    Vector4 bad = ColorNormalize((Color) {164, 36, 40, 255});
+    SetShaderValue(playerHealthOverlayShader,
+                   GetShaderLocation(playerHealthOverlayShader, "badColor"),
+                   &bad,
+                   SHADER_UNIFORM_VEC4);
+
+    playerHealthOverlayHealth = GetShaderLocation(playerHealthOverlayShader, "health");
+
+    Image mask = LoadImage("resources/sprites.png");
+    ImageCrop(&mask, playerHealthOverlayMaskRect);
+    playerHealthMaskTexture = LoadTextureFromImage(mask);
+    UnloadImage(mask);
+  }
 }
 
 void initTextures(void) {
@@ -1554,6 +1674,7 @@ void initTextures(void) {
   target = LoadRenderTexture(LEVEL_WIDTH, LEVEL_HEIGHT);
 
   playerTexture = LoadRenderTexture(playerRect.width, playerRect.height);
+  playerTexture1 = LoadRenderTexture(playerRect.width, playerRect.height);
 }
 
 void initThrusterTrails(void) {
@@ -1655,8 +1776,8 @@ int main(void) {
   initCamera();
   initProjectiles();
   initSoundEffects();
-  initShaders();
   initTextures();
+  initShaders();
   initThrusterTrails();
   initAsteroids();
   initBackgroundAsteroid();
