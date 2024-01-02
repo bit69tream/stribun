@@ -69,10 +69,12 @@ typedef struct {
   float dashReactivationEffectAlpha;
   Vector2 dashDelta;
 
+  int bulletSpread;
+
   bool isInvincible;
 } Player;
 
-#define BACKGROUND_PARALLAX_OFFSET 10
+#define BACKGROUND_PARALLAX_OFFSET 16
 
 static const int screenWidth = 1280;
 static const int screenHeight = 720;
@@ -462,6 +464,9 @@ void tryFiringAShot(void) {
     return;
   }
 
+  int halfSpread = player.bulletSpread / 2;
+  int a = GetRandomValue(-halfSpread, halfSpread);
+
   *new_projectile = (Projectile) {
     .type = PROJECTILE_SQUARED,
     /* .type = PROJECTILE_REGULAR, */
@@ -474,8 +479,9 @@ void tryFiringAShot(void) {
       .x = PLAYER_PROJECTILE_RADIUS * 1.5,
       .y = PLAYER_PROJECTILE_RADIUS * 3,
     },
-    .delta = Vector2Scale(lookingDirection, PLAYER_PROJECTILE_SPEED),
-    .angle = playerLookingAngle(),
+    .delta = Vector2Rotate(Vector2Scale(lookingDirection, PLAYER_PROJECTILE_SPEED),
+                           a * DEG2RAD),
+    .angle = playerLookingAngle() + (float)a,
   };
 
   player.fireCooldown = PLAYER_FIRE_COOLDOWN;
@@ -581,7 +587,7 @@ void renderBackground(void) {
   SetShaderValue(stars, starsTime, &time, SHADER_UNIFORM_FLOAT);
 
   BeginBlendMode(BLEND_ALPHA); {
-    ClearBackground(BLACK);
+    ClearBackground((Color) {41, 1, 53, 69});
     BeginShaderMode(stars); {
       DrawTexturePro(nebulaNoise,
                      (Rectangle) {
@@ -1192,26 +1198,6 @@ void updateCamera(void) {
   camera.offset.y = windowHeight / 2.0f;
 }
 
-void UpdateDrawFrame(void) {
-  updateCamera();
-
-  updateProjectiles();
-  updateThrusterTrails();
-  updateAsteroids();
-
-  updateMouse();
-  updatePlayerPosition();
-  updatePlayerCooldowns();
-
-  tryDashing();
-  tryFiringAShot();
-
-  renderPhase1();
-  renderFinal();
-
-  time += GetFrameTime();
-}
-
 void initRaylib() {
 #if !defined(_DEBUG)
   SetTraceLogLevel(LOG_NONE);
@@ -1243,6 +1229,7 @@ void initPlayer(void) {
       .y = LEVEL_HEIGHT - ((float)LEVEL_HEIGHT / 6),
     },
     .isInvincible = false,
+    .health = MAX_PLAYER_HEALTH,
   };
 }
 
@@ -1290,13 +1277,13 @@ void initShaders(void) {
   time = 0;
 
   {
-#define NEBULAE_NOISE_DOWNSCALE_FACTOR 8
+#define NEBULAE_NOISE_DOWNSCALE_FACTOR 4
 
     Image n = GenImagePerlinNoise(background.x / NEBULAE_NOISE_DOWNSCALE_FACTOR,
                                   background.y / NEBULAE_NOISE_DOWNSCALE_FACTOR,
-                                  0, 0, 4);
+                                  0, 0, 8);
     nebulaNoise = LoadTextureFromImage(n);
-    SetTextureFilter(nebulaNoise, TEXTURE_FILTER_BILINEAR);
+    /* SetTextureFilter(nebulaNoise, TEXTURE_FILTER_BILINEAR); */
     UnloadImage(n);
 
   }
@@ -1358,6 +1345,30 @@ void initThrusterTrails(void) {
     thrusterTrail[i].origin = Vector2Zero();
     thrusterTrail[i].angle = 0.0f;
   }
+}
+
+void UpdateDrawFrame(void) {
+  if (IsKeyPressed(KEY_R)) {
+    initShaders();
+  }
+
+  updateCamera();
+
+  updateProjectiles();
+  updateThrusterTrails();
+  updateAsteroids();
+
+  updateMouse();
+  updatePlayerPosition();
+  updatePlayerCooldowns();
+
+  tryDashing();
+  tryFiringAShot();
+
+  renderPhase1();
+  renderFinal();
+
+  time += GetFrameTime();
 }
 
 int main(void) {
