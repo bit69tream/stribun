@@ -14,6 +14,7 @@
 #include "raylib.h"
 #include "raymath.h"
 #include "rlgl.h"
+#include <math.h>
 
 #if defined(PLATFORM_WEB)
 #define CUSTOM_MODAL_DIALOGS
@@ -77,6 +78,13 @@ typedef struct {
   bool isInvincible;
 } Player;
 
+#define MAX_BOUNDING_CIRCLES 10
+
+typedef struct {
+  Vector2 position;
+  float radius;
+} Circle;
+
 static Rectangle bossMarineRect = {
   .x = 0,
   .y = 35,
@@ -98,9 +106,19 @@ static Vector2 bossMarineWeaponOffset = {
 
 #define BOSS_MARINE_MAX_HEALTH 512
 
+#define BOSS_MARINE_BOUNDING_CIRCLES 12
+
 typedef struct {
   Vector2 position;
   int health;
+  /* positions are relative */
+  Circle boundingCircles[BOSS_MARINE_BOUNDING_CIRCLES];
+
+  float horizontalFlip;
+  Circle processedBoundingCircles[BOSS_MARINE_BOUNDING_CIRCLES];
+  Vector2 bulletOrigin;
+  float weaponAngle;
+  float idealWeaponAngle;
 } BossMarine;
 
 BossMarine bossMarine = {0};
@@ -161,13 +179,6 @@ static Rectangle playerRect = {
   .width = 17,
   .height = 19,
 };
-
-#define MAX_BOUNDING_CIRCLES 10
-
-typedef struct {
-  Vector2 position;
-  float radius;
-} Circle;
 
 typedef struct {
   Rectangle textureRect;
@@ -433,6 +444,39 @@ float playerLookingAngle(void) {
   float angle = Vector2Angle(up, lookingDirection) * RAD2DEG;
 
   return angle;
+}
+
+void updateBossMarine(void) {
+  bossMarine.horizontalFlip =
+    (player.position.x < bossMarine.position.x)
+    ? -1
+    : 1;
+
+  for (int i = 0; i < BOSS_MARINE_BOUNDING_CIRCLES; i++) {
+    bossMarine.processedBoundingCircles[i] = bossMarine.boundingCircles[i];
+    bossMarine.processedBoundingCircles[i].position.x *= bossMarine.horizontalFlip;
+  }
+
+  Vector2 weaponOffset = (Vector2) {
+    .x = bossMarine.horizontalFlip * bossMarineWeaponOffset.x,
+    .y = bossMarineWeaponOffset.y,
+  };
+
+  bossMarine.idealWeaponAngle =
+    angleBetweenPoints(Vector2Add(bossMarine.position,
+                                  weaponOffset),
+                       player.position) - 90;
+  if (bossMarine.horizontalFlip == -1) {
+    bossMarine.idealWeaponAngle += 180;
+  }
+
+  bossMarine.weaponAngle = Lerp(bossMarine.weaponAngle, bossMarine.idealWeaponAngle, 0.1f);
+
+  Vector2 bulletOrigin = Vector2Rotate((Vector2) {
+      .x = bossMarine.horizontalFlip * ((bossMarineWeaponRect.width / 2) * SPRITES_SCALE),
+      .y = -6 * SPRITES_SCALE,
+    }, bossMarine.weaponAngle * DEG2RAD);
+  bossMarine.bulletOrigin = Vector2Add(weaponOffset, bulletOrigin);
 }
 
 void updateMouse(void) {
@@ -1078,8 +1122,13 @@ void renderBoss(void) {
     .y = (bossMarineRect.height * SPRITES_SCALE) / 2,
   };
 
+  Rectangle bossRect = bossMarineRect;
+  bossRect.width *= bossMarine.horizontalFlip;
+  Rectangle weaponRect = bossMarineWeaponRect;
+  weaponRect.width *= bossMarine.horizontalFlip;
+
   DrawTexturePro(sprites,
-                 bossMarineRect,
+                 bossRect,
                  (Rectangle) {
                    .x = bossMarine.position.x,
                    .y = bossMarine.position.y,
@@ -1096,16 +1145,20 @@ void renderBoss(void) {
   };
 
   DrawTexturePro(sprites,
-                 bossMarineWeaponRect,
+                 weaponRect,
                  (Rectangle) {
-                   .x = bossMarine.position.x + bossMarineWeaponOffset.x,
+                   .x = bossMarine.position.x + (bossMarineWeaponOffset.x * bossMarine.horizontalFlip),
                    .y = bossMarine.position.y + bossMarineWeaponOffset.y,
                    .width = bossMarineWeaponRect.width * SPRITES_SCALE,
                    .height = bossMarineWeaponRect.height * SPRITES_SCALE,
                  },
                  weaponCenter,
-                 0,
+                 bossMarine.weaponAngle,
                  WHITE);
+
+  DrawPixelV(Vector2Add(bossMarine.position,
+                        bossMarine.bulletOrigin),
+             RED);
 }
 
 void renderPhase1(void) {
@@ -1473,6 +1526,8 @@ void UpdateDrawFrame(void) {
   updatePlayerPosition();
   updatePlayerCooldowns();
 
+  updateBossMarine();
+
   tryDashing();
   tryFiringAShot();
 
@@ -1501,11 +1556,34 @@ void initBackgroundAsteroid(void) {
 void initBossMarine(void) {
   bossMarine = (BossMarine) {
     .position = {
-      .x = LEVEL_WIDTH / 2,
-      .y = LEVEL_HEIGHT / 2,
+      .x = (float)LEVEL_WIDTH / 2,
+      .y = (float)LEVEL_HEIGHT / 2,
     },
     .health = BOSS_MARINE_MAX_HEALTH,
+    .boundingCircles = {
+      {{4, -25}, 12},
+      {{25, -14}, 5},
+      {{2, 22}, 15},
+      {{0, 12}, 14},
+      {{7, 10}, 12},
+      {{13, 0}, 7},
+      {{-14, 2}, 8},
+      {{-23, -9}, 12},
+      {{-10, -8}, 14},
+      {{6, -8}, 8},
+      {{17, -11}, 9},
+      {{27, -5}, 8},
+    },
+    .weaponAngle = 0,
+    .horizontalFlip = 1,
   };
+
+  for (int i = 0; i < BOSS_MARINE_BOUNDING_CIRCLES; i++) {
+    bossMarine.boundingCircles[i].position =
+      Vector2Scale(bossMarine.boundingCircles[i].position,
+                   SPRITES_SCALE);
+    bossMarine.boundingCircles[i].radius *= SPRITES_SCALE;
+  }
 };
 
 int main(void) {
