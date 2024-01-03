@@ -41,6 +41,17 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
+typedef enum {
+  GAME_MAIN_MENU,
+  GAME_BOSS,
+  GAME_BOSS_DEAD,
+  GAME_PLAYER_DEAD,
+} GameState;
+
+static Music mainMenuMusic = {0};
+
+static GameState gameState = GAME_MAIN_MENU;
+
 #define SPRITES_SCALE 3.5
 static Texture2D sprites = {0};
 
@@ -170,10 +181,10 @@ static Vector2 bigAssAsteroidPositionDelta = {0};
 static float bigAssAsteroidAngleDelta = 0;
 
 static Rectangle mouseCursorRect = {
-  .x = 0,
+  .x = 175,
   .y = 0,
-  .width = 15,
-  .height = 15,
+  .width = 17,
+  .height = 17,
 };
 
 static Rectangle playerHealthOverlayMaskRect = {
@@ -540,7 +551,7 @@ void bossMarineWalk(void) {
 
 void updateBossMarine(void) {
   if (bossMarine.health <= 0) {
-    printf("dead\n");
+    gameState = GAME_BOSS_DEAD;
     return;
   }
 
@@ -585,6 +596,9 @@ void updateMouse(void) {
   }
 
   mouseCursor = GetScreenToWorld2D(screenMouseLocation, camera);
+  if (gameState == GAME_MAIN_MENU) {
+    mouseCursor = screenMouseLocation;
+  }
 
   if (!IsCursorHidden()) {
     DisableCursor();
@@ -757,11 +771,17 @@ void updatePlayerPosition(void) {
 }
 
 void renderBackground(void) {
+  Vector2 pos = player.position;
+
+  if (gameState == GAME_MAIN_MENU) {
+    pos = mouseCursor;
+  }
+
   float background_x = Lerp(0, BACKGROUND_PARALLAX_OFFSET,
-                            player.position.x / LEVEL_WIDTH);
+                            pos.x / LEVEL_WIDTH);
 
   float background_y = Lerp(0, BACKGROUND_PARALLAX_OFFSET,
-                            player.position.y / LEVEL_HEIGHT);
+                            pos.y / LEVEL_HEIGHT);
 
   SetShaderValue(stars, starsTime, &time, SHADER_UNIFORM_FLOAT);
 
@@ -1593,6 +1613,11 @@ void updateCamera(void) {
   camera.target.x = Lerp(camera.target.x, target_x, 0.1f);
   camera.target.y = Lerp(camera.target.y, target_y, 0.1f);
 
+  if (gameState == GAME_MAIN_MENU) {
+    camera.target.x = (float)LEVEL_WIDTH / 2;
+    camera.target.y = (float)LEVEL_HEIGHT / 2;
+  }
+
   camera.offset.x = windowWidth / 2.0f;
   camera.offset.y = windowHeight / 2.0f;
 }
@@ -1779,33 +1804,155 @@ void updateBackgroundAsteroid(void) {
   bigAssAsteroidAngle += bigAssAsteroidAngleDelta;
 }
 
-void UpdateDrawFrame(void) {
-  if (IsKeyPressed(KEY_R)) {
-    initShaders();
-  }
-
-  if (IsKeyPressed(KEY_Z)) {
-    player.health -= 1;
-  }
-
+void updateAndRenderBossFight(void) {
   updateCamera();
 
-  updateProjectiles();
-  updateThrusterTrails();
-  updateAsteroids();
-  updateBackgroundAsteroid();
+  if (gameState == GAME_BOSS) {
+    updateProjectiles();
+    updateThrusterTrails();
+    updateAsteroids();
+    updateBackgroundAsteroid();
 
-  updateMouse();
-  updatePlayerPosition();
-  updatePlayerCooldowns();
+    updateMouse();
+    updatePlayerPosition();
+    updatePlayerCooldowns();
 
-  updateBossMarine();
+    updateBossMarine();
 
-  tryDashing();
-  tryFiringAShot();
+    tryDashing();
+    tryFiringAShot();
+  }
 
   renderPhase1();
   renderFinal();
+}
+
+void renderGameTitle(void) {
+  float mul = camera.zoom * 2;
+
+  Font f = GetFontDefault();
+  char *text = "STRIBUN";
+  float fontSize = 50 * mul;
+  float spacing = 4 * mul;
+  Vector2 size = MeasureTextEx(f, text, fontSize, spacing);
+
+  Vector2 pos = (Vector2) {
+    .x = (float)GetScreenWidth() / 2,
+    .y = (float)GetScreenHeight() / 6,
+  };
+
+  DrawTextPro(f,
+              text,
+              Vector2Add(pos, (Vector2) {spacing, spacing}),
+              Vector2Scale(size, 0.5f),
+              0,
+              fontSize,
+              spacing,
+              BLACK);
+
+  DrawTextPro(f,
+              text,
+              pos,
+              Vector2Scale(size, 0.5f),
+              0,
+              fontSize,
+              spacing,
+              WHITE);
+}
+
+void renderPhase0(void) {
+  BeginTextureMode(target); {
+    renderBackground();
+  } EndTextureMode();
+}
+
+static float floatingShipRotation = 0;
+static float floatingShipRotationDelta = 360.0f / 30.0f;
+
+void updateFloatingShip(void) {
+  float halfWidth = (float)GetScreenWidth() / 2;
+
+  float scale = 1;
+  if (mouseCursor.x > halfWidth) {
+    scale = (mouseCursor.x - halfWidth) / halfWidth;
+  } else {
+    scale = (halfWidth - mouseCursor.x) / halfWidth;
+    scale *= -1;
+  }
+
+  floatingShipRotation += floatingShipRotationDelta * scale;
+}
+
+void renderFloatingShip(void) {
+  float y = (float)GetScreenHeight() / 2;
+  float x = (float)GetScreenWidth() / 4;
+
+  float scale = camera.zoom * 30;
+
+  float width = playerRect.width * scale;
+  float height = playerRect.height * scale;
+
+  DrawTexturePro(sprites,
+                 playerRect,
+                 (Rectangle) {x, y, width, height},
+                 (Vector2) {width / 2, height / 2},
+                 floatingShipRotation,
+                 WHITE);
+}
+
+void renderMainMenu(void) {
+  renderPhase0();
+
+  BeginDrawing(); {
+    ClearBackground(BLACK);
+
+    float width = (float)target.texture.width;
+    float height = (float)target.texture.height;
+
+    BeginMode2D(camera); {
+      DrawTexturePro(target.texture,
+                     (Rectangle) {0, 0, width, -height},
+                     (Rectangle) {0, 0, width, height},
+                     Vector2Zero(),
+                     0.0f,
+                     WHITE);
+    }; EndMode2D();
+
+    renderFloatingShip();
+    renderGameTitle();
+    renderMouseCursor();
+  } EndDrawing();
+}
+
+static float mainMenuMusicVolume = 0.8f;
+void updateMainMenuMusic(void) {
+  if (!IsMusicStreamPlaying(mainMenuMusic)) {
+    PlayMusicStream(mainMenuMusic);
+  }
+
+  UpdateMusicStream(mainMenuMusic);
+}
+
+void updateAndRenderMainMenu(void) {
+  updateCamera();
+  updateMouse();
+  updateFloatingShip();
+  updateMainMenuMusic();
+
+  renderMainMenu();
+}
+
+void UpdateDrawFrame(void) {
+  switch (gameState) {
+  case GAME_MAIN_MENU:
+    updateAndRenderMainMenu();
+    break;
+  case GAME_BOSS:
+  case GAME_BOSS_DEAD:
+  case GAME_PLAYER_DEAD:
+    updateAndRenderBossFight();
+    break;
+  }
 
   time += GetFrameTime();
 }
@@ -1860,6 +2007,11 @@ void initBossMarine(void) {
   }
 };
 
+void initMusic(void) {
+  mainMenuMusic = LoadMusicStream("resources/drozerix_-_stardust_jam.mod");
+  SetMusicVolume(mainMenuMusic, mainMenuMusicVolume);
+}
+
 int main(void) {
   initRaylib();
   initMouse();
@@ -1872,6 +2024,7 @@ int main(void) {
   initThrusterTrails();
   initAsteroids();
   initBackgroundAsteroid();
+  initMusic();
 
   initBossMarine();
 
