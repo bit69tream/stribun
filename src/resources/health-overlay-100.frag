@@ -38,7 +38,7 @@ void main() {
   float v = rgb2hsv(origColor.rgb).z;
 
   if (v == 0.) {
-    finalColor = origColor;
+    gl_FragColor = origColor;
     return;
   }
 
