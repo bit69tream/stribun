@@ -1900,6 +1900,130 @@ void renderFloatingShip(void) {
                  WHITE);
 }
 
+void renderMusicAuthor(void) {
+  char* text = "Music: Drozerix - Stardust Jam";
+
+  float mul = camera.zoom * 2;
+
+  Font f = GetFontDefault();
+  float fontSize = 10 * mul;
+  float spacing = 1 * mul;
+  Vector2 size = MeasureTextEx(f, text, fontSize, spacing);
+
+  Vector2 pos = (Vector2) {
+    .x = (float)10,
+    .y = (float)GetScreenHeight() - size.y - 10,
+  };
+
+  float alpha = sin(time) * cos(time) + 0.5f;
+
+  DrawTextPro(f,
+              text,
+              Vector2Add(pos, (Vector2) {spacing, spacing}),
+              Vector2Zero(),
+              0,
+              fontSize,
+              spacing,
+              ColorAlpha(BLACK, alpha));
+
+  DrawTextPro(f,
+              text,
+              pos,
+              Vector2Zero(),
+              0,
+              fontSize,
+              spacing,
+              ColorAlpha(WHITE, alpha));
+}
+
+typedef enum {
+  BUTTON_ACTION_START,
+  BUTTON_ACTION_QUIT,
+  BUTTON_ACTION_COUNT,
+} ButtonAction;
+
+typedef struct {
+  ButtonAction action;
+  Rectangle rect;
+} Button;
+
+static Button mainMenuButtons[BUTTON_ACTION_COUNT] = {0};
+static Vector2 mousePressLocation = {0};
+
+void updateButtons(void) {
+  float x = (float)GetScreenWidth() - (float)GetScreenWidth() / 4;
+  float width = (float)GetScreenWidth() / 4.5;
+  float height = (float)GetScreenHeight() / 8;
+  float y = (float)GetScreenHeight() / 2 + (height);
+
+  for (int i = 0; i < BUTTON_ACTION_COUNT; i++) {
+    mainMenuButtons[i].action = i;
+    mainMenuButtons[i].rect = (Rectangle) {
+      x, y, width, height,
+    };
+
+    if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT) &&
+        CheckCollisionPointRec(mousePressLocation, mainMenuButtons[i].rect) &&
+        CheckCollisionPointRec(mouseCursor, mainMenuButtons[i].rect)) {
+      switch (i) {
+      case BUTTON_ACTION_START: gameState = GAME_BOSS; return;
+      case BUTTON_ACTION_QUIT: exit(0);
+      default: break;
+      }
+    }
+
+    y += height * 1.5;
+  }
+
+  if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    mousePressLocation = mouseCursor;
+  }
+
+}
+
+void renderButtons(void) {
+  for (int i = 0; i < BUTTON_ACTION_COUNT; i++) {
+    if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) &&
+        CheckCollisionPointRec(mousePressLocation, mainMenuButtons[i].rect) &&
+        CheckCollisionPointRec(mouseCursor, mainMenuButtons[i].rect)) {
+      DrawRectangleRec(mainMenuButtons[i].rect,
+                       LIGHTGRAY);
+    } else {
+      DrawRectangleRec(mainMenuButtons[i].rect,
+                       WHITE);
+    }
+
+    char* text = "";
+
+    switch (mainMenuButtons[i].action) {
+    case BUTTON_ACTION_START: text = "START"; break;
+    case BUTTON_ACTION_QUIT: text = "QUIT"; break;
+    default: continue;
+    };
+
+    float mul = camera.zoom * 2;
+
+    Font f = GetFontDefault();
+    float fontSize = 25 * mul;
+    float spacing = 1 * mul;
+    Vector2 size = MeasureTextEx(f, text, fontSize, spacing);
+
+    Vector2 pos = (Vector2) {
+      .x = (float)mainMenuButtons[i].rect.x + mainMenuButtons[i].rect.width / 2,
+      .y = (float)mainMenuButtons[i].rect.y + mainMenuButtons[i].rect.height / 2,
+    };
+
+    DrawTextPro(f,
+                text,
+                pos,
+                Vector2Scale(size, 0.5f),
+                0,
+                fontSize,
+                spacing,
+                BLACK);
+  }
+}
+
 void renderMainMenu(void) {
   renderPhase0();
 
@@ -1920,6 +2044,8 @@ void renderMainMenu(void) {
 
     renderFloatingShip();
     renderGameTitle();
+    renderMusicAuthor();
+    renderButtons();
     renderMouseCursor();
   } EndDrawing();
 }
@@ -1938,6 +2064,7 @@ void updateAndRenderMainMenu(void) {
   updateMouse();
   updateFloatingShip();
   updateMainMenuMusic();
+  updateButtons();
 
   renderMainMenu();
 }
