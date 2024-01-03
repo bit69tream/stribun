@@ -1,6 +1,6 @@
-## stribun
+## STRIBUN
 
-![$(Game Title)](screenshots/screenshot000.png "$(Game Title)")
+![$(STRIBUN)](screenshots/screenshot000.png "$(STRIBUN)")
 
 ### Description
 
