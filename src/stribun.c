@@ -644,7 +644,8 @@ void tryDashing(void) {
 
 void tryFiringAShot(void) {
   if (!IsMouseButtonDown(MOUSE_BUTTON_LEFT) ||
-      player.fireCooldown > 0.0f) {
+      player.fireCooldown > 0.0f ||
+      player.dashCooldown > 0.0f) {
     return;
   }
 
