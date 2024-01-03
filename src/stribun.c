@@ -106,6 +106,8 @@ static Vector2 bossMarineWeaponOffset = {
 
 #define BOSS_MARINE_MAX_HEALTH 512
 
+#define BOSS_MARINE_NAME "Uziel Enkidas"
+
 #define BOSS_MARINE_BOUNDING_CIRCLES 12
 
 typedef struct {
@@ -1290,6 +1292,87 @@ void renderPhase1(void) {
   } EndTextureMode();
 }
 
+#define HEALTH_BAR_HEIGHT 5
+
+static Rectangle bossMarineHeadRect = {
+  .x = 76,
+  .y = 30,
+  .width = 23,
+  .height = 21,
+};
+
+void renderBossHealthBar(void) {
+  const float screenFill = 0.7;
+
+  const float width = (float)GetScreenWidth() * screenFill;
+  const float height = HEALTH_BAR_HEIGHT * SPRITES_SCALE * camera.zoom;
+
+  Rectangle rect = {
+    .x = (float)GetScreenWidth() / 2,
+    .y = height * 1.5,
+    .width = width,
+    .height = height,
+  };
+
+  Rectangle wRect = rect;
+  wRect.width += SPRITES_SCALE * camera.zoom * 2;
+
+  Rectangle hRect = rect;
+  hRect.height += SPRITES_SCALE * camera.zoom * 2;
+
+  DrawRectanglePro(wRect, (Vector2) {wRect.width / 2, wRect.height / 2}, 0, BLACK);
+  DrawRectanglePro(hRect, (Vector2) {hRect.width / 2, hRect.height / 2}, 0, BLACK);
+
+  float health = (float)bossMarine.health / BOSS_MARINE_MAX_HEALTH;
+
+  rect.x -= rect.width / 2;
+
+  Vector2 head = {
+    .x = rect.x + rect.width * health,
+    .y = rect.y,
+  };
+
+  rect.y -= rect.height / 2;
+
+
+  rect.width *= health;
+
+  DrawRectanglePro(rect, Vector2Zero(), 0, RED);
+
+  float mul = SPRITES_SCALE * camera.zoom * 0.6;
+
+  Font f = GetFontDefault();
+  char *bossName = BOSS_MARINE_NAME;
+  float fontSize = 11 * mul;
+  float spacing = 1 * mul;
+  Vector2 size = MeasureTextEx(f, bossName, fontSize, spacing);
+
+  DrawTextPro(f, bossName, (Vector2) {
+      .x = (float)GetScreenWidth() / 2,
+      .y = height * 2,
+    },
+    Vector2Scale(size, 0.5f),
+    0,
+    fontSize,
+    spacing,
+    WHITE);
+
+  DrawTexturePro(sprites,
+                 bossMarineHeadRect,
+                 (Rectangle) {
+                   .x = head.x,
+                   .y = head.y,
+                   .width = bossMarineHeadRect.width * mul,
+                   .height = bossMarineHeadRect.height * mul,
+                 },
+                 (Vector2) {
+                   .x = (bossMarineHeadRect.width * mul) / 2,
+                   .y = (bossMarineHeadRect.height * mul) / 2,
+                 },
+                 sin(time * 2) * 15,
+                 WHITE);
+}
+
 void renderFinal(void) {
   BeginDrawing(); {
     ClearBackground(BLACK);
@@ -1315,6 +1398,8 @@ void renderFinal(void) {
                      0.0f,
                      WHITE);
     }; EndMode2D();
+
+    renderBossHealthBar();
 
     DrawFPS(0, 0);
   } EndDrawing();
@@ -1647,13 +1732,15 @@ void initShaders(void) {
   {
     playerHealthOverlayShader = LoadShader(NULL, TextFormat("resources/health-overlay-%d.frag", GLSL_VERSION));
 
-    Vector4 good = ColorNormalize(DARKGREEN);
+    /* Vector4 good = ColorNormalize((Color) {164, 36, 40, 255}); */
+    Vector4 good = ColorNormalize((Color) {129, 73, 151, 255});
     SetShaderValue(playerHealthOverlayShader,
                    GetShaderLocation(playerHealthOverlayShader, "goodColor"),
                    &good,
                    SHADER_UNIFORM_VEC4);
 
-    Vector4 bad = ColorNormalize((Color) {164, 36, 40, 255});
+    /* Vector4 bad = ColorNormalize((Color) {69, 69, 69, 255}); */
+    Vector4 bad = ColorNormalize(BLACK);
     SetShaderValue(playerHealthOverlayShader,
                    GetShaderLocation(playerHealthOverlayShader, "badColor"),
                    &bad,
@@ -1695,6 +1782,10 @@ void updateBackgroundAsteroid(void) {
 void UpdateDrawFrame(void) {
   if (IsKeyPressed(KEY_R)) {
     initShaders();
+  }
+
+  if (IsKeyPressed(KEY_Z)) {
+    player.health -= 1;
   }
 
   updateCamera();
