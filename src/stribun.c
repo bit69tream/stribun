@@ -1982,6 +1982,11 @@ void updateButtons(void) {
 }
 
 void renderButtons(void) {
+  float mul = camera.zoom * 2;
+  Font f = GetFontDefault();
+  float fontSize = 25 * mul;
+  float spacing = 1 * mul;
+
   for (int i = 0; i < BUTTON_ACTION_COUNT; i++) {
     if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) &&
         CheckCollisionPointRec(mousePressLocation, mainMenuButtons[i].rect) &&
@@ -1993,6 +1998,12 @@ void renderButtons(void) {
                        WHITE);
     }
 
+    if (CheckCollisionPointRec(mouseCursor, mainMenuButtons[i].rect)) {
+      DrawRectangleLinesEx(mainMenuButtons[i].rect,
+                           2 * mul,
+                           LIGHTGRAY);
+    }
+
     char* text = "";
 
     switch (mainMenuButtons[i].action) {
@@ -2001,11 +2012,6 @@ void renderButtons(void) {
     default: continue;
     };
 
-    float mul = camera.zoom * 2;
-
-    Font f = GetFontDefault();
-    float fontSize = 25 * mul;
-    float spacing = 1 * mul;
     Vector2 size = MeasureTextEx(f, text, fontSize, spacing);
 
     Vector2 pos = (Vector2) {
