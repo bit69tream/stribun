@@ -2479,7 +2479,7 @@ void renderButtons(void) {
   float mul = camera.zoom * 2;
   Font f = GetFontDefault();
   float fontSize = 25 * mul;
-  float spacing = 1 * mul;
+  float spacing = 2 * mul;
 
   for (int i = 0; i < BUTTON_ACTION_COUNT; i++) {
     if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) &&
