@@ -709,7 +709,7 @@ void bossMarineAttack(void) {
                       0,
                       spread,
                       NULL,
-                      2.0f,
+                      1.0f,
                       true,
                       GOLD,
                       MAROON);
@@ -724,6 +724,13 @@ void bossMarineAttack(void) {
 void updateBossMarine(void) {
   if (bossMarine.health <= 0) {
     gameState = GAME_BOSS_DEAD;
+
+    for (int i = 0; i < PROJECTILES_MAX; i++) {
+      if (projectiles[i].type != PROJECTILE_NONE) {
+        projectiles[i].willBeDestroyed = true;
+        projectiles[i].destructionTimer = 0.02f;
+      }
+    }
     return;
   }
 
@@ -815,7 +822,7 @@ void tryDashing(void) {
 #define PLAYER_FIRE_COOLDOWN 0.15f
 #define PLAYER_PROJECTILE_RADIUS 9
 #define PLAYER_PROJECTILE_SPEED 30.0f
-#define PLAYER_PROJECTILE_BASE_DAMAGE 2
+#define PLAYER_PROJECTILE_BASE_DAMAGE 256
 
 void tryFiringAShot(void) {
   if (!IsMouseButtonDown(MOUSE_BUTTON_LEFT) ||
@@ -1501,6 +1508,8 @@ void renderBoss(void) {
                  WHITE);
 }
 
+static float blackBackgroundAlpha = 0;
+
 void renderPhase1(void) {
   renderPlayerTexture();
 
@@ -1516,6 +1525,13 @@ void renderPhase1(void) {
     }
 
     renderAsteroids();
+
+    if (gameState == GAME_BOSS_DEAD) {
+      DrawRectangleV(Vector2Zero(),
+                     level,
+                     ColorAlpha(BLACK,
+                                blackBackgroundAlpha));
+    }
 
     renderBoss();
 
@@ -1838,7 +1854,7 @@ void updateProjectiles(void) {
 
     if (projectiles[i].lifetime <= 0.0f) {
       projectiles[i].willBeDestroyed = true;
-      projectiles[i].destructionTimer = 0.05f;
+      projectiles[i].destructionTimer = 0.02f;
       continue;
     }
 
@@ -1927,6 +1943,10 @@ void updateCamera(void) {
   float halfScreenHeight = (windowHeight / (2 * camera.zoom));
 
   Vector2 target = player.position;
+
+  if (gameState == GAME_BOSS_DEAD) {
+    target = bossMarine.position;
+  }
 
   Vector2 topLeft = {
     halfScreenWidth,
@@ -2573,6 +2593,21 @@ void updateAndRenderTutorial(void) {
   } EndDrawing();
 }
 
+void updateAndRenderBossDead(void) {
+  blackBackgroundAlpha = Lerp(blackBackgroundAlpha,
+                              1.0f,
+                              0.2f);
+  blackBackgroundAlpha = Clamp(blackBackgroundAlpha,
+                               0, 1);
+
+  updateMouse();
+  updateCamera();
+  updateProjectiles();
+
+  renderPhase1();
+  renderFinal();
+}
+
 void UpdateDrawFrame(void) {
   switch (gameState) {
   case GAME_MAIN_MENU:
@@ -2587,7 +2622,9 @@ void UpdateDrawFrame(void) {
   case GAME_BOSS:
     updateAndRenderBossFight();
     break;
-  case GAME_BOSS_DEAD:
+  case GAME_BOSS_DEAD: {
+    updateAndRenderBossDead();
+  } break;
   case GAME_PLAYER_DEAD:
     exit(1);
     break;
