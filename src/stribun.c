@@ -103,6 +103,7 @@ typedef struct {
   int bulletSpread;
 
   bool isInvincible;
+  float iframeTimer;
 } Player;
 
 typedef struct {
@@ -1769,10 +1770,16 @@ void checkRegularProjectileCollision(int i) {
   }
 
   if (!player.isInvincible &&
+      !projectiles[i].willBeDestroyed &&
       projectiles[i].isHurtfulForPlayer &&
       CheckCollisionCircles(proj, radius, player.position, PLAYER_HITBOX_RADIUS)) {
+
     projectiles[i].willBeDestroyed = true;
-    player.health -= projectiles[i].damage;
+
+    if (player.iframeTimer == 0.0f) {
+      player.health -= projectiles[i].damage;
+      player.iframeTimer = 0.2f;
+    }
 
     if (player.health == 0) {
       gameState = GAME_PLAYER_DEAD;
@@ -1940,6 +1947,7 @@ void updatePlayerCooldowns(void) {
 
   DECREASE_COOLDOWN(player.fireCooldown);
   DECREASE_COOLDOWN(player.dashCooldown);
+  DECREASE_COOLDOWN(player.iframeTimer);
 
   frameTime *= 2;
   DECREASE_COOLDOWN(player.dashReactivationEffectAlpha);
