@@ -392,8 +392,8 @@ void checkForCollisionsBetweenAsteroids(int i, int k) {
         Vector2 offset = Vector2Rotate((Vector2) {0, offsetDistance}, angle);
         asteroids[i].position = Vector2Add(asteroids[i].position, offset);
 
-        asteroids[i].delta = Vector2Reflect(asteroids[i].delta, (Vector2) {0, -1});
-        asteroids[k].delta = Vector2Reflect(asteroids[k].delta, (Vector2) {0, -1});
+        asteroids[i].delta = Vector2Add(asteroids[i].delta, offset);
+        asteroids[k].delta = Vector2Subtract(asteroids[k].delta, offset);
         return;
       }
     }
