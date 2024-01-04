@@ -44,6 +44,7 @@
 typedef enum {
   BOSS_INTRODUCTION_BEGINNING,
   BOSS_INTRODUCTION_FOCUS,
+  BOSS_INTRODUCTION_INFO,
 } BossIntroductionStage;
 
 static BossIntroductionStage introductionStage = {0};
@@ -60,6 +61,7 @@ typedef enum {
 static Vector2 cameraIntroductionTarget = {0};
 
 static Music mainMenuMusic = {0};
+static Music bossMarineMusic = {0};
 
 static GameState gameState = GAME_MAIN_MENU;
 
@@ -302,6 +304,8 @@ static float time = 0;
 static Sound dashSoundEffect = {0};
 static Sound playerShot = {0};
 static Sound beep = {0};
+static Sound borderActivation = {0};
+static Sound bossMarineShotgunSound = {0};
 
 typedef enum {
   PROJECTILE_NONE,
@@ -1210,15 +1214,20 @@ void renderProjectiles(void) {
   }
 }
 
+Vector2 arenaTopLeft = {0};
+Vector2 arenaBottomRight = {0};
+
 void renderArenaBorder(void) {
   SetShaderValue(arenaBorderShader,
                  arenaBorderTime,
                  &time,
                  SHADER_UNIFORM_FLOAT);
+
+  Vector2 arenaSize = Vector2Subtract(arenaBottomRight, arenaTopLeft);
   BeginShaderMode(arenaBorderShader); {
-    DrawRectangle(0, 0,
-                  LEVEL_WIDTH, LEVEL_HEIGHT,
-                  BLUE);
+    DrawRectangleV(arenaTopLeft,
+                   arenaSize,
+                   BLUE);
   } EndShaderMode();
 }
 
@@ -1312,7 +1321,8 @@ void renderPhase1(void) {
     renderBackground();
     renderBackgroundAsteroid();
 
-    if (gameState == GAME_BOSS) {
+    if (gameState == GAME_BOSS ||
+        (gameState == GAME_BOSS_INTRODUCTION && introductionStage != BOSS_INTRODUCTION_BEGINNING)) {
       renderArenaBorder();
     }
 
@@ -1386,15 +1396,13 @@ void renderBossHealthBar(void) {
   float spacing = 1 * mul;
   Vector2 size = MeasureTextEx(f, bossName, fontSize, spacing);
 
-  DrawTextPro(f, bossName, (Vector2) {
+  Vector2 pos = {
       .x = (float)GetScreenWidth() / 2,
       .y = height * 2,
-    },
-    Vector2Scale(size, 0.5f),
-    0,
-    fontSize,
-    spacing,
-    WHITE);
+  };
+
+  DrawTextPro(f, bossName, pos, Vector2Scale(size, 0.5f), 0, fontSize, spacing, BLACK);
+  DrawTextPro(f, bossName, Vector2SubtractValue(pos, spacing), Vector2Scale(size, 0.5f), 0, fontSize, spacing, WHITE);
 
   DrawTexturePro(sprites,
                  bossMarineHeadRect,
@@ -1410,6 +1418,70 @@ void renderBossHealthBar(void) {
                  },
                  sin(time * 2) * 15,
                  WHITE);
+}
+
+static Vector2 bossInfoHeadPosition = {0};
+static float infoXBase = 0;
+
+void renderBossInfo(void) {
+  float w = GetScreenWidth();
+  float h = GetScreenHeight();
+
+  Color red = (Color) {143, 30, 32, 255};
+
+  float x1 = infoXBase + w / 3;
+  float x2 = x1 + (w /3);
+
+  DrawRectangle(infoXBase, 0,
+                w / 3, h,
+                red);
+
+  DrawTriangle((Vector2) {x1, 0},
+               (Vector2) {x1, h},
+               (Vector2) {x2, h},
+               red);
+
+  float mul = 25;
+
+  DrawTexturePro(sprites,
+                 bossMarineHeadRect,
+                 (Rectangle) {
+                   .x = bossInfoHeadPosition.x,
+                   .y = bossInfoHeadPosition.y,
+                   .width = bossMarineHeadRect.width * mul,
+                   .height = bossMarineHeadRect.height * mul,
+                 },
+                 (Vector2) {
+                   .x = (bossMarineHeadRect.width * mul) / 2,
+                   .y = (bossMarineHeadRect.height * mul) / 2,
+                 },
+                 sin(time) * 15,
+                 WHITE);
+
+  Font f = GetFontDefault();
+  char *bossName = BOSS_MARINE_NAME;
+  float fontSize = 11 * mul / 4;
+  float spacing = 1 * mul / 4;
+  Vector2 size = MeasureTextEx(f, bossName, fontSize, spacing);
+
+  Vector2 pos = (Vector2) {
+      .x = w / 4 * 3,
+      .y = h / 2,
+  };
+
+  DrawTextPro(f, bossName, Vector2AddValue(pos, spacing),
+              Vector2Scale(size, 0.5f),
+              0,
+              fontSize,
+              spacing,
+              red);
+
+  DrawTextPro(f, bossName, pos,
+              Vector2Scale(size, 0.5f),
+              0,
+              fontSize,
+              spacing,
+              WHITE);
 }
 
 void renderFinal(void) {
@@ -1437,6 +1509,11 @@ void renderFinal(void) {
                      0.0f,
                      WHITE);
     }; EndMode2D();
+
+    if (gameState == GAME_BOSS_INTRODUCTION &&
+        introductionStage == BOSS_INTRODUCTION_INFO) {
+      renderBossInfo();
+    }
 
     if (gameState == GAME_BOSS) {
       renderBossHealthBar();
@@ -1736,6 +1813,11 @@ void initSoundEffects(void) {
   SetSoundVolume(playerShot, 0.5);
 
   beep = LoadSound("resources/beep.wav");
+
+  borderActivation = LoadSound("resources/border.wav");
+  SetSoundVolume(borderActivation, 0.3);
+
+  bossMarineShotgunSound = LoadSound("resources/shot02.wav");
 }
 
 void initShaders(void) {
@@ -1846,6 +1928,12 @@ void updateBackgroundAsteroid(void) {
 
 void updateAndRenderBossFight(void) {
   updateCamera();
+
+  if (!IsMusicStreamPlaying(bossMarineMusic)) {
+    PlayMusicStream(bossMarineMusic);
+  }
+
+  UpdateMusicStream(bossMarineMusic);
 
   if (gameState == GAME_BOSS) {
     updateProjectiles();
@@ -2118,6 +2206,11 @@ void updateAndRenderMainMenu(void) {
   renderMainMenu();
 }
 
+static float arenaLerp = 0;
+static Vector2 arenaLerpLocation = {0};
+
+static float bossInfoTimer = 0;
+
 void updateAndRenderIntroduction(void) {
   switch (introductionStage) {
   case BOSS_INTRODUCTION_BEGINNING: {
@@ -2137,6 +2230,10 @@ void updateAndRenderIntroduction(void) {
 
     if (Vector2Distance(player.position, playerDestination) < 10.0f) {
       introductionStage = BOSS_INTRODUCTION_FOCUS;
+      arenaLerpLocation = player.position;
+      arenaLerp = 0;
+
+      PlaySound(borderActivation);
     }
   } break;
   case BOSS_INTRODUCTION_FOCUS: {
@@ -2144,11 +2241,46 @@ void updateAndRenderIntroduction(void) {
                                            bossMarine.position,
                                            0.1f);
 
-    if (Vector2Distance(cameraIntroductionTarget, bossMarine.position) < 10.0f) {
+    arenaLerp = Clamp(arenaLerp + GetFrameTime(), 0.0f, 1.0f);
+
+    if (Vector2Distance(cameraIntroductionTarget, bossMarine.position) < 10.0f &&
+        arenaLerp == 1.0f) {
+      introductionStage = BOSS_INTRODUCTION_INFO;
+      bossInfoTimer = 2.0f;
+
+      bossInfoHeadPosition = (Vector2) {
+          .x = -(GetScreenWidth() / 3),
+          .y = (GetScreenHeight() / 2),
+      };
+      infoXBase = -(GetScreenWidth() / 3);
+
+      PlaySound(bossMarineShotgunSound);
+    }
+  } break;
+  case BOSS_INTRODUCTION_INFO: {
+    bossInfoTimer -= GetFrameTime();
+
+    bossInfoHeadPosition =
+      Vector2Lerp(bossInfoHeadPosition,
+                  (Vector2) {
+                    .x = (GetScreenWidth() / 3),
+                    .y = (GetScreenHeight() / 2),
+                  },
+                  0.1f);
+
+    infoXBase = Lerp(infoXBase, 0, 0.1f);
+
+    if (bossInfoTimer <= 0.0f) {
       gameState = GAME_BOSS;
+      PlayMusicStream(bossMarineMusic);
     }
   } break;
   }
+
+  arenaTopLeft = Vector2Lerp(arenaLerpLocation, Vector2Zero(),
+                             arenaLerp);
+  arenaBottomRight = Vector2Lerp(arenaLerpLocation, level,
+                                 arenaLerp);
 
   updateCamera();
 
@@ -2278,6 +2410,9 @@ void initBossMarine(void) {
 void initMusic(void) {
   mainMenuMusic = LoadMusicStream("resources/drozerix_-_stardust_jam.mod");
   SetMusicVolume(mainMenuMusic, mainMenuMusicVolume);
+
+  bossMarineMusic = LoadMusicStream("resources/once_is_not_enough.mod");
+  SetMusicVolume(bossMarineMusic, 0.5);
 }
 
 int main(void) {

@@ -30,8 +30,11 @@ _TODO: Show your game to the world, animated GIFs recommended!._
 ### Used Resources
  - `dash.wav` - [Shapeforms Audio Free Sound Effects](https://shapeforms.itch.io/shapeforms-audio-free-sfx)
  - `shot01.wav` - [Shapeforms Audio Free Sound Effects](https://shapeforms.itch.io/shapeforms-audio-free-sfx)
+ - `shot02.wav` - [Shapeforms Audio Free Sound Effects](https://shapeforms.itch.io/shapeforms-audio-free-sfx)
+ - `border.wav` - [Shapeforms Audio Free Sound Effects](https://shapeforms.itch.io/shapeforms-audio-free-sfx)
  - `beep.wav` - [Shapeforms Audio Free Sound Effects](https://shapeforms.itch.io/shapeforms-audio-free-sfx)
  - `drozerix_-_stardust_jam.mod` - [Drozerix - Stardust Jam](https://modarchive.org/module.php?201039)
+ - `once_is_not_enough.mod` - [once is not enough](https://modarchive.org/module.php?170002) [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 
 ### License
 
