@@ -345,7 +345,6 @@ typedef enum {
   PROJECTILE_SQUARED,
 } ProjectileType;
 
-/* TODO: maybe make some projectiles able to bounce from the arena border */
 typedef struct {
   ProjectileType type;
 
@@ -720,7 +719,7 @@ void bossMarineAttack(void) {
                       0,
                       spread,
                       NULL,
-                      1.0f,
+                      5.0f,
                       false,
                       MAROON,
                       GOLD);
@@ -740,11 +739,11 @@ void bossMarineAttack(void) {
     for (int i = -40; i < 40; i += 2) {
       float spread = (float)i;
 
-      bossMarineShoot(0.4f,
+      bossMarineShoot(0.7f,
                       0,
                       spread,
                       NULL,
-                      1.0f,
+                      4.0f,
                       true,
                       GOLD,
                       MAROON);
@@ -1646,7 +1645,9 @@ void renderPhase1(void) {
 
     renderProjectiles();
 
-    if (gameState != GAME_BOSS_INTRODUCTION) {
+    if (gameState != GAME_BOSS_INTRODUCTION &&
+        gameState != GAME_PLAYER_DEAD &&
+        gameState != GAME_BOSS_DEAD) {
       renderMouseCursor();
     }
   } EndTextureMode();
@@ -1982,24 +1983,29 @@ void updateProjectiles(void) {
       float r = projectiles[i].radius;
       Vector2 o = projectiles[i].origin;
 
+      #define PROJECTILE_LIFETIME_AFTER_BOUNCE 0.25f
       if ((o.x - r) <= 0) {
         projectiles[i].delta = Vector2Reflect(projectiles[i].delta,
                                               normalRight);
+        projectiles[i].lifetime = MIN(PROJECTILE_LIFETIME_AFTER_BOUNCE, projectiles[i].lifetime);
       }
 
       if ((o.x + r) >= LEVEL_WIDTH - 1) {
         projectiles[i].delta = Vector2Reflect(projectiles[i].delta,
                                               normalLeft);
+        projectiles[i].lifetime = MIN(PROJECTILE_LIFETIME_AFTER_BOUNCE, projectiles[i].lifetime);
       }
 
       if ((o.y - r) <= 0) {
         projectiles[i].delta = Vector2Reflect(projectiles[i].delta,
                                               normalDown);
+        projectiles[i].lifetime = MIN(PROJECTILE_LIFETIME_AFTER_BOUNCE, projectiles[i].lifetime);
       }
 
       if ((o.y + r) >= LEVEL_HEIGHT - 1) {
         projectiles[i].delta = Vector2Reflect(projectiles[i].delta,
                                               normalUp);
+        projectiles[i].lifetime = MIN(PROJECTILE_LIFETIME_AFTER_BOUNCE, projectiles[i].lifetime);
       }
     } else if ((projectiles[i].origin.x <= 0) ||
                (projectiles[i].origin.y <= 0) ||
@@ -2834,7 +2840,7 @@ void updateAndRenderBossDead(void) {
   blackBackgroundAlpha = Clamp(blackBackgroundAlpha,
                                0, 1);
 
-  updateMouse();
+  /* updateMouse(); */
   updateCamera();
   updateProjectiles();
   updateDeadBoss();
@@ -2852,7 +2858,7 @@ void updateAndRenderPlayerDead(void) {
 
   deadPlayerTime -= GetFrameTime();
 
-  updateMouse();
+  /* updateMouse(); */
   updateCamera();
   updateProjectiles();
   updateDeadPlayer();
