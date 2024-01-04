@@ -9,7 +9,7 @@ A space shooter inspired by games like Enter The Gungeon, Furi and Nuclear Thron
 ### Controls
 
 Keyboard:
- - <kbd>W</kbd>/<kbd>A</kbd>/<kbd>S</kbd>/<kbd>D</kbd> - movement
+ - <kbd>W</kbd>/<kbd>A</kbd>/<kbd>S</kbd>/<kbd>D</kbd> or <kbd>E</kbd>/<kbd>S</kbd>/<kbd>D</kbd>/<kbd>F</kbd> - movement
  - <kbd>Left mouse button</kbd> - shoot
  - <kbd>Right mouse button</kbd> - dash
 
