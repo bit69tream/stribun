@@ -78,7 +78,7 @@ typedef enum {
   DIRECTION_RIGHT = 0b1000,
 } Direction;
 
-#define MAX_PLAYER_HEALTH 16
+#define MAX_PLAYER_HEALTH 8
 
 #define PLAYER_HITBOX_RADIUS 16
 
