@@ -41,6 +41,8 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
+static bool esdf = false;
+
 typedef enum {
   BOSS_INTRODUCTION_BEGINNING,
   BOSS_INTRODUCTION_FOCUS,
@@ -700,25 +702,51 @@ void tryFiringAShot(void) {
   PlaySound(playerShot);
 }
 
-void movePlayerWithAKeyboard(void) {
-  /* TODO: settings option to change movement keys */
+typedef enum {
+  KEY_MOVE_UP,
+  KEY_MOVE_LEFT,
+  KEY_MOVE_DOWN,
+  KEY_MOVE_RIGHT,
+  KEY_MOVE_COUNT,
+} MovementKeys;
 
-  if (IsKeyDown(KEY_E)) {
+static KeyboardKey esdfKeys[KEY_MOVE_COUNT] = {
+  [KEY_MOVE_UP] = KEY_E,
+  [KEY_MOVE_LEFT] = KEY_S,
+  [KEY_MOVE_DOWN] = KEY_D,
+  [KEY_MOVE_RIGHT] = KEY_F,
+};
+
+static KeyboardKey wasdKeys[KEY_MOVE_COUNT] = {
+  [KEY_MOVE_UP] = KEY_W,
+  [KEY_MOVE_LEFT] = KEY_A,
+  [KEY_MOVE_DOWN] = KEY_S,
+  [KEY_MOVE_RIGHT] = KEY_D,
+};
+
+void movePlayerWithAKeyboard(void) {
+  KeyboardKey *keys = wasdKeys;
+
+  if (esdf) {
+    keys = esdfKeys;
+  }
+
+  if (IsKeyDown(keys[KEY_MOVE_UP])) {
     player.movementDirection |= DIRECTION_UP;
     player.movementDelta.y -= PLAYER_MOVEMENT_SPEED;
   }
 
-  if (IsKeyDown(KEY_S)) {
+  if (IsKeyDown(keys[KEY_MOVE_LEFT])) {
     player.movementDirection |= DIRECTION_LEFT;
     player.movementDelta.x -= PLAYER_MOVEMENT_SPEED;
   }
 
-  if (IsKeyDown(KEY_D)) {
+  if (IsKeyDown(keys[KEY_MOVE_DOWN])) {
     player.movementDirection |= DIRECTION_DOWN;
     player.movementDelta.y += PLAYER_MOVEMENT_SPEED;
   }
 
-  if (IsKeyDown(KEY_F)) {
+  if (IsKeyDown(keys[KEY_MOVE_RIGHT])) {
     player.movementDirection |= DIRECTION_RIGHT;
     player.movementDelta.x += PLAYER_MOVEMENT_SPEED;
   }
@@ -2066,6 +2094,7 @@ void renderMusicAuthor(void) {
 
 typedef enum {
   BUTTON_ACTION_START,
+  BUTTON_ACTION_TOGGLE_CONTROLS,
   BUTTON_ACTION_QUIT,
   BUTTON_ACTION_COUNT,
 } ButtonAction;
@@ -2082,7 +2111,7 @@ void updateButtons(void) {
   float x = (float)GetScreenWidth() - (float)GetScreenWidth() / 4;
   float width = (float)GetScreenWidth() / 4.5;
   float height = (float)GetScreenHeight() / 8;
-  float y = (float)GetScreenHeight() / 2 + (height);
+  float y = (float)GetScreenHeight() / 3 + (height);
 
   for (int i = 0; i < BUTTON_ACTION_COUNT; i++) {
     mainMenuButtons[i].action = i;
@@ -2098,6 +2127,9 @@ void updateButtons(void) {
         PlaySound(beep);
         gameState = GAME_TUTORIAL;
       } return;
+      case BUTTON_ACTION_TOGGLE_CONTROLS: {
+        esdf = !esdf;
+      } break;
       case BUTTON_ACTION_QUIT: exit(0);
       default: break;
       }
@@ -2139,6 +2171,7 @@ void renderButtons(void) {
 
     switch (mainMenuButtons[i].action) {
     case BUTTON_ACTION_START: text = "START"; break;
+    case BUTTON_ACTION_TOGGLE_CONTROLS: text = esdf ? "ESDF" : "WASD"; break;
     case BUTTON_ACTION_QUIT: text = "QUIT"; break;
     default: continue;
     };
@@ -2308,6 +2341,10 @@ void updateAndRenderTutorial(void) {
     "LEFT MOUSE BUTTON = SHOOT",
     "RIGHT MOUSE BUTTON = DASH",
   };
+
+  if (esdf) {
+    text[0] = "E/S/D/F = MOVEMENT";
+  }
 
   Vector2 pos = (Vector2) {
     .x = (float)GetScreenWidth() / 2.0f,
