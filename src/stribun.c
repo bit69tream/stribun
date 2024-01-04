@@ -710,7 +710,7 @@ void bossMarineAttack(void) {
     for (int i = 0; i < 30; i++) {
       (void) i;
 
-      float spread = (float)GetRandomValue(-15, 15);
+      float spread = (float)GetRandomValue(-30, 30);
       float speed = (float)GetRandomValue(1, 10) / 10.0f * 0.8f;
 
       bossMarineShoot(speed,
