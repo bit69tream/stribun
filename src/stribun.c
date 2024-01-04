@@ -42,11 +42,22 @@
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 typedef enum {
+  BOSS_INTRODUCTION_BEGINNING,
+  BOSS_INTRODUCTION_FOCUS,
+} BossIntroductionStage;
+
+static BossIntroductionStage introductionStage = {0};
+
+typedef enum {
   GAME_MAIN_MENU,
+  GAME_TUTORIAL,
+  GAME_BOSS_INTRODUCTION,
   GAME_BOSS,
   GAME_BOSS_DEAD,
   GAME_PLAYER_DEAD,
 } GameState;
+
+static Vector2 cameraIntroductionTarget = {0};
 
 static Music mainMenuMusic = {0};
 
@@ -159,8 +170,8 @@ static const Vector2 level = {
 };
 
 static const Vector2 background = {
-  .x = LEVEL_WIDTH + (BACKGROUND_PARALLAX_OFFSET * 2),
-  .y = LEVEL_HEIGHT + (BACKGROUND_PARALLAX_OFFSET * 2),
+  .x = (float)LEVEL_WIDTH * 1.5,
+  .y = (float)LEVEL_HEIGHT * 1.5,
 };
 
 static RenderTexture2D target = {0};
@@ -290,6 +301,7 @@ static float time = 0;
 
 static Sound dashSoundEffect = {0};
 static Sound playerShot = {0};
+static Sound beep = {0};
 
 typedef enum {
   PROJECTILE_NONE,
@@ -1298,7 +1310,10 @@ void renderPhase1(void) {
 
     renderBackground();
     renderBackgroundAsteroid();
-    renderArenaBorder();
+
+    if (gameState == GAME_BOSS) {
+      renderArenaBorder();
+    }
 
     renderAsteroids();
 
@@ -1309,7 +1324,9 @@ void renderPhase1(void) {
 
     renderProjectiles();
 
-    renderMouseCursor();
+    if (gameState != GAME_BOSS_INTRODUCTION) {
+      renderMouseCursor();
+    }
   } EndTextureMode();
 }
 
@@ -1420,7 +1437,9 @@ void renderFinal(void) {
                      WHITE);
     }; EndMode2D();
 
-    renderBossHealthBar();
+    if (gameState == GAME_BOSS) {
+      renderBossHealthBar();
+    }
 
     DrawFPS(0, 0);
   } EndDrawing();
@@ -1601,26 +1620,43 @@ void updateCamera(void) {
   float x = windowWidth / (float)screenWidth;
   float y = windowHeight / (float)screenHeight;
 
-  camera.zoom = MIN(x, y);
-
   float halfScreenWidth = (windowWidth / (2 * camera.zoom));
   float halfScreenHeight = (windowHeight / (2 * camera.zoom));
 
-  float target_x = Clamp(player.position.x, halfScreenWidth,
-                         (float)LEVEL_WIDTH - halfScreenWidth);
-  float target_y = Clamp(player.position.y, halfScreenHeight,
-                         (float)LEVEL_HEIGHT - halfScreenHeight);
+  Vector2 target = player.position;
 
-  camera.target.x = Lerp(camera.target.x, target_x, 0.1f);
-  camera.target.y = Lerp(camera.target.y, target_y, 0.1f);
+  Vector2 topLeft = {
+    halfScreenWidth,
+    halfScreenHeight,
+  };
+
+  Vector2 bottomRight = {
+    (float)LEVEL_WIDTH - halfScreenWidth,
+    (float)LEVEL_HEIGHT - halfScreenHeight,
+  };
+
+  camera.offset.x = windowWidth / 2.0f;
+  camera.offset.y = windowHeight / 2.0f;
+
+  camera.zoom = MIN(x, y);
 
   if (gameState == GAME_MAIN_MENU) {
     camera.target.x = (float)LEVEL_WIDTH / 2;
     camera.target.y = (float)LEVEL_HEIGHT / 2;
+    return;
   }
 
-  camera.offset.x = windowWidth / 2.0f;
-  camera.offset.y = windowHeight / 2.0f;
+  if (gameState == GAME_BOSS_INTRODUCTION) {
+    camera.target = Vector2Clamp(cameraIntroductionTarget,
+                                 topLeft,
+                                 bottomRight);
+    return;
+  }
+
+  target = Vector2Clamp(target,
+                        topLeft,
+                        bottomRight);
+  camera.target = Vector2Lerp(camera.target, target, 0.1f);
 }
 
 void initRaylib() {
@@ -1651,7 +1687,7 @@ void initPlayer(void) {
   player = (Player) {
     .position = (Vector2) {
       .x = (float)LEVEL_WIDTH / 2,
-      .y = LEVEL_HEIGHT - ((float)LEVEL_HEIGHT / 6),
+      .y = LEVEL_HEIGHT + ((float)LEVEL_HEIGHT / 6),
     },
     .isInvincible = false,
     .health = MAX_PLAYER_HEALTH,
@@ -1696,7 +1732,9 @@ void initSoundEffects(void) {
   SetSoundVolume(dashSoundEffect, 0.3);
 
   playerShot = LoadSound("resources/shot01.wav");
-  SetSoundVolume(playerShot, 0.2);
+  SetSoundVolume(playerShot, 0.5);
+
+  beep = LoadSound("resources/beep.wav");
 }
 
 void initShaders(void) {
@@ -1967,7 +2005,10 @@ void updateButtons(void) {
         CheckCollisionPointRec(mousePressLocation, mainMenuButtons[i].rect) &&
         CheckCollisionPointRec(mouseCursor, mainMenuButtons[i].rect)) {
       switch (i) {
-      case BUTTON_ACTION_START: gameState = GAME_BOSS; return;
+      case BUTTON_ACTION_START: {
+        PlaySound(beep);
+        gameState = GAME_TUTORIAL;
+      } return;
       case BUTTON_ACTION_QUIT: exit(0);
       default: break;
       }
@@ -2076,17 +2117,109 @@ void updateAndRenderMainMenu(void) {
   renderMainMenu();
 }
 
+void updateAndRenderIntroduction(void) {
+  switch (introductionStage) {
+  case BOSS_INTRODUCTION_BEGINNING: {
+    cameraIntroductionTarget = (Vector2) {
+      .x = (float)LEVEL_WIDTH / 2,
+      .y = LEVEL_HEIGHT - (((float)LEVEL_HEIGHT / 6) / 2),
+    };
+
+    Vector2 playerDestination = {
+      .x = (float)LEVEL_WIDTH / 2,
+      .y = LEVEL_HEIGHT - ((float)LEVEL_HEIGHT / 6),
+    };
+
+    player.position = Vector2Lerp(player.position,
+                                  playerDestination,
+                                  0.05f);
+
+    if (Vector2Distance(player.position, playerDestination) < 10.0f) {
+      introductionStage = BOSS_INTRODUCTION_FOCUS;
+    }
+  } break;
+  case BOSS_INTRODUCTION_FOCUS: {
+    cameraIntroductionTarget = Vector2Lerp(cameraIntroductionTarget,
+                                           bossMarine.position,
+                                           0.1f);
+
+    if (Vector2Distance(cameraIntroductionTarget, bossMarine.position) < 10.0f) {
+      gameState = GAME_BOSS;
+    }
+  } break;
+  }
+
+  updateCamera();
+
+  renderPhase1();
+  renderFinal();
+}
+
+void updateAndRenderTutorial(void) {
+  if (GetKeyPressed() != KEY_NULL ||
+      IsMouseButtonPressed(MOUSE_BUTTON_LEFT) ||
+      IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+    gameState = GAME_BOSS_INTRODUCTION;
+    introductionStage = BOSS_INTRODUCTION_BEGINNING;
+    lookingDirection = Vector2Zero();
+    return;
+  }
+
+  float mul = camera.zoom * 2;
+  Font f = GetFontDefault();
+  float fontSize = 25 * mul;
+  float spacing = 2 * mul;
+
+  char *text[] = {
+    "W/A/S/D = MOVEMENT",
+    "LEFT MOUSE BUTTON = SHOOT",
+    "RIGHT MOUSE BUTTON = DASH",
+  };
+
+  Vector2 pos = (Vector2) {
+    .x = (float)GetScreenWidth() / 2.0f,
+    .y = (float)GetScreenHeight() / 3.0f,
+  };
+
+  updateCamera();
+  BeginDrawing(); {
+    ClearBackground(BLACK);
+
+    for (size_t i = 0; i < sizeof(text) / sizeof(text[0]); i++) {
+      Vector2 size = MeasureTextEx(f, text[i], fontSize, spacing);
+
+      DrawTextPro(f, text[i], pos, Vector2Scale(size, 0.5f), 0, fontSize, spacing, WHITE);
+      pos.y += size.y;
+    }
+
+    char *text1 = "PRESS ANY KEY IF UNDERSTOOD";
+    Vector2 size = MeasureTextEx(f, text1, fontSize, spacing);
+    pos.y += size.y;
+
+    DrawTextPro(f, text1, pos, Vector2Scale(size, 0.5f), 0, fontSize, spacing, WHITE);
+
+  } EndDrawing();
+}
+
 void UpdateDrawFrame(void) {
   switch (gameState) {
   case GAME_MAIN_MENU:
     updateAndRenderMainMenu();
     break;
+  case GAME_TUTORIAL: {
+    updateAndRenderTutorial();
+  } break;
+  case GAME_BOSS_INTRODUCTION:
+    updateAndRenderIntroduction();
+    break;
   case GAME_BOSS:
-  case GAME_BOSS_DEAD:
-  case GAME_PLAYER_DEAD:
     updateAndRenderBossFight();
     break;
-  }
+  case GAME_BOSS_DEAD:
+  case GAME_PLAYER_DEAD:
+    exit(1);
+    break;
+    }
 
   time += GetFrameTime();
 }

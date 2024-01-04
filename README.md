@@ -28,8 +28,9 @@ _TODO: Show your game to the world, animated GIFs recommended!._
  - Steam Release: $(Steam Game Page)
 
 ### Used Resources
- - `dash.wav` - [Shapeforms Audio Free Sound Effects](https://shapeforms.itch.io/shapeforms-audio-free-sfx)  `Shapeforms Audio Free Sound Effects/Hit and Punch Preview/AUDIO/HIT_METAL_WRENCH_HEAVIEST_02.wav`
- - `shot01.wav` - [Shapeforms Audio Free Sound Effects](https://shapeforms.itch.io/shapeforms-audio-free-sfx) `Shapeforms Audio Free Sound Effects/Sci Fi Weapons Cyberpunk Arsenal Preview/AUDIO/GUNSupr_Silenced Pistol Fire Short_01.wav`
+ - `dash.wav` - [Shapeforms Audio Free Sound Effects](https://shapeforms.itch.io/shapeforms-audio-free-sfx)
+ - `shot01.wav` - [Shapeforms Audio Free Sound Effects](https://shapeforms.itch.io/shapeforms-audio-free-sfx)
+ - `beep.wav` - [Shapeforms Audio Free Sound Effects](https://shapeforms.itch.io/shapeforms-audio-free-sfx)
  - `drozerix_-_stardust_jam.mod` - [Drozerix - Stardust Jam](https://modarchive.org/module.php?201039)
 
 ### License
