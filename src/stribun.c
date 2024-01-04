@@ -509,6 +509,7 @@ void bossMarineCheckCollisions(void) {
           Vector2 asteroidOffset = Vector2Rotate((Vector2) {0, offsetDistance}, angle);
 
           asteroids[ai].position = Vector2Add(asteroids[ai].position, asteroidOffset);
+          asteroids[ai].delta = Vector2Add(asteroids[ai].delta, asteroidOffset);
         }
       }
     }
