@@ -82,7 +82,7 @@ typedef enum {
 
 #define PLAYER_HITBOX_RADIUS 16
 
-#define PLAYER_DASH_COOLDOWN 0.5f
+#define PLAYER_DASH_COOLDOWN 0.45f
 
 #define PLAYER_MOVEMENT_SPEED 6
 
@@ -1668,11 +1668,13 @@ void renderBossInfo(void) {
 
   Color red = (Color) {143, 30, 32, 255};
 
-  float x1 = infoXBase + w / 3;
-  float x2 = x1 + (w /3);
+  float w3 = roundf(w / 3);
+
+  float x1 = ceilf(infoXBase + w3);
+  float x2 = floorf(x1 + w3);
 
   DrawRectangle(infoXBase, 0,
-                w / 3, h,
+                w3, h,
                 red);
 
   DrawTriangle((Vector2) {x1, 0},
@@ -2040,7 +2042,7 @@ void initRaylib() {
 
 #if defined(PLATFORM_DESKTOP)
   SetExitKey(KEY_NULL);
-  SetWindowState(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_MAXIMIZED | FLAG_BORDERLESS_WINDOWED_MODE);
+  /* SetWindowState(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_MAXIMIZED | FLAG_BORDERLESS_WINDOWED_MODE); */
 #endif
 }
 
@@ -2616,7 +2618,7 @@ void updateAndRenderIntroduction(void) {
           .x = -(GetScreenWidth() / 3),
           .y = (GetScreenHeight() / 2),
       };
-      infoXBase = -(GetScreenWidth() / 3);
+      infoXBase = -roundf(GetScreenWidth() / 3);
 
       PlaySound(bossMarineShotgunSound);
     }
