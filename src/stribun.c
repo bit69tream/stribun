@@ -581,7 +581,7 @@ void bossMarineUpdateWeapon(void) {
 void bossMarineWalk(void) {
   float playerBossAngle = angleBetweenPoints(player.position,
                                              bossMarine.position);
-#define BOSS_MARINE_SPEED 2
+#define BOSS_MARINE_SPEED 4
 #define BOSS_MARINE_MIN_PLAYER_DISTANCE 200
 #define BOSS_MARINE_MAX_PLAYER_DISTANCE 400
 
@@ -655,8 +655,9 @@ void bossMarineAttack(void) {
     bossMarine.isWalking = (bool)GetRandomValue(0, 1);
 
     if (bossMarine.currentAttack == BOSS_MARINE_NOT_SHOOTING) {
-      bossMarine.currentAttack = GetRandomValue(BOSS_MARINE_SINUS_SHOOTING,
-                                                BOSS_MARINE_BOUNCING_WAVES);
+      bossMarine.currentAttack += GetRandomValue(BOSS_MARINE_SINUS_SHOOTING,
+                                                 BOSS_MARINE_BOUNCING_WAVES);
+      bossMarine.currentAttack = bossMarine.currentAttack % BOSS_MARINE_NOT_SHOOTING;
       bossMarine.attackTimer = (float)GetRandomValue(3, 7);
     } else {
       bossMarine.currentAttack = BOSS_MARINE_NOT_SHOOTING;
