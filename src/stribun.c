@@ -136,6 +136,14 @@ static Vector2 bossMarineWeaponOffset = {
 
 #define BOSS_MARINE_BOUNDING_CIRCLES 12
 
+typedef enum {
+  BOSS_MARINE_SINUS_SHOOTING,
+  BOSS_MARINE_SHOOTING,
+  BOSS_MARINE_SHOTGUNNING,
+  BOSS_MARINE_BOUNCING_WAVES,
+  BOSS_MARINE_NOT_SHOOTING,
+} BossMarineAttack;
+
 typedef struct {
   Vector2 position;
   int health;
@@ -148,6 +156,11 @@ typedef struct {
   float weaponAngle;
 
   float walkingDirection;
+  bool isWalking;
+  BossMarineAttack currentAttack;
+  float attackTimer;
+  float weaponAngleOffset;
+  float fireCooldown;
 } BossMarine;
 
 BossMarine bossMarine = {0};
@@ -307,7 +320,9 @@ static Sound dashSoundEffect = {0};
 static Sound playerShot = {0};
 static Sound beep = {0};
 static Sound borderActivation = {0};
+
 static Sound bossMarineShotgunSound = {0};
+static Sound bossMarineGunshotSound = {0};
 
 typedef enum {
   PROJECTILE_NONE,
@@ -335,6 +350,12 @@ typedef struct {
   bool isHurtfulForBoss;
 
   int damage;
+
+  Color inside;
+  Color outside;
+
+  float lifetime;
+  bool canBounce;
 } Projectile;
 
 #define PROJECTILES_MAX 1024
@@ -536,6 +557,8 @@ void bossMarineUpdateWeapon(void) {
     bossMarine.weaponAngle += 180;
   }
 
+  bossMarine.weaponAngle += bossMarine.weaponAngleOffset;
+
   Vector2 bulletOrigin = Vector2Rotate((Vector2) {
       .x = bossMarine.horizontalFlip * ((bossMarineWeaponRect.width / 2) * SPRITES_SCALE),
       .y = -6 * SPRITES_SCALE,
@@ -568,6 +591,136 @@ void bossMarineWalk(void) {
   }
 }
 
+#define BOSS_MARINE_BASE_DAMAGE 1
+#define BOSS_MARINE_PROJECTILE_RADIUS 13
+#define BOSS_MARINE_PROJECTILE_SPEED 25.0f
+
+void bossMarineShoot(float speedMultiplier,
+                     float cooldown,
+                     float spread,
+                     Sound *sound,
+                     float lifetime,
+                     bool willBounce,
+                     Color inside,
+                     Color outside) {
+  if (bossMarine.fireCooldown > 0.0f) {
+    return;
+  }
+
+  Projectile *new_projectile = push_projectile();
+
+  if (new_projectile == NULL) {
+    return;
+  }
+
+  *new_projectile = (Projectile) {
+    .type = PROJECTILE_REGULAR,
+    .isHurtfulForBoss = false,
+    .isHurtfulForPlayer = true,
+    .damage = BOSS_MARINE_BASE_DAMAGE,
+    .origin = Vector2Add(bossMarine.position, bossMarine.bulletOrigin),
+    .radius = BOSS_MARINE_PROJECTILE_RADIUS,
+    .delta = Vector2Rotate(Vector2Scale((Vector2) {bossMarine.horizontalFlip, 0}, BOSS_MARINE_PROJECTILE_SPEED * speedMultiplier),
+                           (bossMarine.weaponAngle + spread) * DEG2RAD),
+    .angle = 0,
+    .inside = inside,
+    .outside = outside,
+    .lifetime = lifetime,
+    .canBounce = willBounce,
+  };
+  bossMarine.fireCooldown = cooldown;
+
+  if (sound) {
+    PlaySound(*sound);
+  }
+}
+
+void bossMarineAttack(void) {
+  bossMarine.attackTimer -= GetFrameTime();
+  bossMarine.fireCooldown -= GetFrameTime();
+
+  if (bossMarine.attackTimer <= 0.0f) {
+    bossMarine.isWalking = (bool)GetRandomValue(0, 1);
+
+    if (bossMarine.currentAttack == BOSS_MARINE_NOT_SHOOTING) {
+      bossMarine.currentAttack = GetRandomValue(BOSS_MARINE_SINUS_SHOOTING,
+                                                BOSS_MARINE_BOUNCING_WAVES);
+      bossMarine.attackTimer = (float)GetRandomValue(3, 7);
+    } else {
+      bossMarine.currentAttack = BOSS_MARINE_NOT_SHOOTING;
+      bossMarine.attackTimer = (float)GetRandomValue(1, 10) / 10.0f;
+    }
+
+    bossMarine.weaponAngleOffset = 0;
+  }
+
+  switch (bossMarine.currentAttack) {
+  case BOSS_MARINE_SINUS_SHOOTING: {
+    bossMarine.weaponAngleOffset = sin(time * 4) * 30 * bossMarine.horizontalFlip;
+    bossMarineUpdateWeapon();
+
+    bossMarineShoot(0.3f, 0.04f, 0, &bossMarineGunshotSound, 10, false, MAROON, GOLD);
+  } break;
+  case BOSS_MARINE_NOT_SHOOTING: {
+    bossMarineUpdateWeapon();
+  } break;
+  case BOSS_MARINE_SHOOTING: {
+    bossMarineUpdateWeapon();
+    bossMarineShoot(0.4f, 0.08f, (float)GetRandomValue(-30, 30), &bossMarineGunshotSound, 10, false, MAROON, GOLD);
+  } break;
+  case BOSS_MARINE_SHOTGUNNING: {
+    bossMarineUpdateWeapon();
+
+    if (bossMarine.fireCooldown > 0.0f) {
+      break;
+    }
+
+    for (int i = 0; i < 30; i++) {
+      (void) i;
+
+      float spread = (float)GetRandomValue(-15, 15);
+      float speed = (float)GetRandomValue(1, 10) / 10.0f * 0.6f;
+
+      bossMarineShoot(speed,
+                      0,
+                      spread,
+                      NULL,
+                      1.0f,
+                      false,
+                      MAROON,
+                      GOLD);
+    }
+
+    PlaySound(bossMarineShotgunSound);
+    bossMarine.fireCooldown = 0.7f;
+
+  } break;
+  case BOSS_MARINE_BOUNCING_WAVES: {
+    bossMarineUpdateWeapon();
+
+    if (bossMarine.fireCooldown > 0.0f) {
+      break;
+    }
+
+    for (int i = -40; i < 40; i += 2) {
+      float spread = (float)i;
+
+      bossMarineShoot(0.4f,
+                      0,
+                      spread,
+                      NULL,
+                      2.0f,
+                      true,
+                      GOLD,
+                      MAROON);
+    }
+
+    PlaySound(bossMarineShotgunSound);
+    bossMarine.fireCooldown = 1.0f;
+  } break;
+  };
+}
+
 void updateBossMarine(void) {
   if (bossMarine.health <= 0) {
     gameState = GAME_BOSS_DEAD;
@@ -585,8 +738,11 @@ void updateBossMarine(void) {
   }
 
   bossMarineCheckCollisions();
-  bossMarineUpdateWeapon();
-  bossMarineWalk();
+  if (bossMarine.isWalking) {
+    bossMarineWalk();
+  }
+
+  bossMarineAttack();
 
   Vector2 minPos = Vector2Scale((Vector2){bossMarineRect.width / 2, bossMarineRect.width / 2},
                                 SPRITES_SCALE);
@@ -695,6 +851,11 @@ void tryFiringAShot(void) {
     .delta = Vector2Rotate(Vector2Scale(lookingDirection, PLAYER_PROJECTILE_SPEED),
                            a * DEG2RAD),
     .angle = playerLookingAngle() + (float)a,
+
+    .inside = DARKBLUE,
+    .outside = BLUE,
+    .lifetime = 10,
+    .canBounce = false,
   };
 
   player.fireCooldown = PLAYER_FIRE_COOLDOWN;
@@ -1197,7 +1358,7 @@ void renderProjectiles(void) {
     case PROJECTILE_REGULAR: {
       DrawCircleV(projectiles[i].origin,
                   projectiles[i].radius * radiusScale,
-                  BLUE);
+                  projectiles[i].outside);
 
       if (projectiles[i].willBeDestroyed) {
         break;
@@ -1205,7 +1366,7 @@ void renderProjectiles(void) {
 
       DrawCircleV(projectiles[i].origin,
                   projectiles[i].radius - PROJECTILE_BORDER,
-                  DARKBLUE);
+                  projectiles[i].inside);
     } break;
     case PROJECTILE_SQUARED: {
       Rectangle shape = (Rectangle) {
@@ -1221,7 +1382,7 @@ void renderProjectiles(void) {
                          .y = shape.height / 2,
                        },
                        projectiles[i].angle,
-                       BLUE);
+                       projectiles[i].outside);
 
       if (projectiles[i].willBeDestroyed) {
         break;
@@ -1236,7 +1397,7 @@ void renderProjectiles(void) {
                          .y = shape.height / 2,
                        },
                        projectiles[i].angle,
-                       DARKBLUE);
+                       projectiles[i].inside);
     } break;
     }
   }
@@ -1578,9 +1739,9 @@ void checkRegularProjectileCollision(int i) {
     }
   }
 
-  if (projectiles[i].isHurtfulForPlayer &&
-      CheckCollisionCircles(proj, radius,
-                            player.position, PLAYER_HITBOX_RADIUS)) {
+  if (!player.isInvincible &&
+      projectiles[i].isHurtfulForPlayer &&
+      CheckCollisionCircles(proj, radius, player.position, PLAYER_HITBOX_RADIUS)) {
     projectiles[i].willBeDestroyed = true;
     player.health -= projectiles[i].damage;
     return;
@@ -1651,6 +1812,11 @@ void checkSquaredProjectileCollision(int i) {
 }
 
 void updateProjectiles(void) {
+  Vector2 normalDown = {0, 1};
+  Vector2 normalUp = {0, -1};
+  Vector2 normalRight = {1, 0};
+  Vector2 normalLeft = {-1, 0};
+
   for (int i = 0; i < PROJECTILES_MAX; i++) {
     if (projectiles[i].type == PROJECTILE_NONE) {
       continue;
@@ -1668,10 +1834,41 @@ void updateProjectiles(void) {
       continue;
     }
 
-    if ((projectiles[i].origin.x <= 0) ||
-        (projectiles[i].origin.y <= 0) ||
-        (projectiles[i].origin.x >= (LEVEL_WIDTH - 1)) ||
-        (projectiles[i].origin.y >= (LEVEL_HEIGHT - 1))) {
+    projectiles[i].lifetime -= GetFrameTime();
+
+    if (projectiles[i].lifetime <= 0.0f) {
+      projectiles[i].willBeDestroyed = true;
+      projectiles[i].destructionTimer = 0.05f;
+      continue;
+    }
+
+    if (projectiles[i].canBounce && projectiles[i].type == PROJECTILE_REGULAR) {
+      float r = projectiles[i].radius;
+      Vector2 o = projectiles[i].origin;
+
+      if ((o.x - r) <= 0) {
+        projectiles[i].delta = Vector2Reflect(projectiles[i].delta,
+                                              normalRight);
+      }
+
+      if ((o.x + r) >= LEVEL_WIDTH - 1) {
+        projectiles[i].delta = Vector2Reflect(projectiles[i].delta,
+                                              normalLeft);
+      }
+
+      if ((o.y - r) <= 0) {
+        projectiles[i].delta = Vector2Reflect(projectiles[i].delta,
+                                              normalDown);
+      }
+
+      if ((o.y + r) >= LEVEL_HEIGHT - 1) {
+        projectiles[i].delta = Vector2Reflect(projectiles[i].delta,
+                                              normalUp);
+      }
+    } else if ((projectiles[i].origin.x <= 0) ||
+               (projectiles[i].origin.y <= 0) ||
+               (projectiles[i].origin.x >= (LEVEL_WIDTH - 1)) ||
+               (projectiles[i].origin.y >= (LEVEL_HEIGHT - 1))) {
       projectiles[i].origin.x = Clamp(projectiles[i].origin.x,
                                       0,
                                       LEVEL_WIDTH - 1);
@@ -1846,6 +2043,7 @@ void initSoundEffects(void) {
   SetSoundVolume(borderActivation, 0.3);
 
   bossMarineShotgunSound = LoadSound("resources/shot02.wav");
+  bossMarineGunshotSound = LoadSound("resources/shot03.wav");
 }
 
 void initShaders(void) {
@@ -2308,6 +2506,8 @@ void updateAndRenderIntroduction(void) {
 
     if (bossInfoTimer <= 0.0f) {
       gameState = GAME_BOSS;
+      bossMarine.attackTimer = 0.5f;
+      bossMarine.currentAttack = BOSS_MARINE_NOT_SHOOTING;
     }
   } break;
   }
