@@ -82,7 +82,7 @@ typedef enum {
 
 #define PLAYER_HITBOX_RADIUS 16
 
-#define PLAYER_DASH_COOLDOWN 0.45f
+#define PLAYER_DASH_COOLDOWN 0.55f
 
 #define PLAYER_MOVEMENT_SPEED 6
 
@@ -96,9 +96,9 @@ typedef struct {
 
   Direction movementDirection;
   Vector2 movementDelta;
+  Vector2 dashDelta;
 
   float dashReactivationEffectAlpha;
-  Vector2 dashDelta;
 
   int bulletSpread;
 
@@ -185,6 +185,9 @@ static int arenaBorderTime = 0;
 
 static Shader stars = {0};
 static int starsTime = 0;
+
+static Shader dashTrailShader = {0};
+static int dashTrailShaderAlpha = {0};
 
 static Camera2D camera = {0};
 
@@ -823,7 +826,7 @@ void updateMouse(void) {
   lookingDirection = Vector2Normalize(Vector2Subtract(mouseCursor, player.position));
 }
 
-#define PLAYER_DASH_DISTANCE 128
+#define PLAYER_DASH_DISTANCE 20
 
 void tryDashing(void) {
   if (!IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) ||
@@ -956,15 +959,30 @@ void movePlayerWithAKeyboard(void) {
   player.position = Vector2Add(player.position, player.movementDelta);
 }
 
-void movePlayerWithADash(void) {
-#define DASH_DELTA_LERP_RATE 0.5f
-  player.dashDelta.x = Lerp(player.dashDelta.x,
-                            0.0f,
-                            DASH_DELTA_LERP_RATE);
+typedef struct {
+  Vector2 position;
+  float angle;
+  float alpha;
+} PlayerDashTrail;
 
-  player.dashDelta.y = Lerp(player.dashDelta.y,
-                            0.0f,
-                            DASH_DELTA_LERP_RATE);
+#define PLAYER_DASH_TRAILS_MAX 64
+static PlayerDashTrail dashTrails[PLAYER_DASH_TRAILS_MAX] = {0};
+
+PlayerDashTrail *pushDashTrail(void) {
+  for (int i = 0; i < PLAYER_DASH_TRAILS_MAX; i++) {
+    if (dashTrails[i].alpha <= 0.0f) {
+      return &dashTrails[i];
+    }
+  }
+
+  return NULL;
+}
+
+void movePlayerWithADash(void) {
+#define DASH_DELTA_LERP_RATE 0.12f
+  player.dashDelta = Vector2Lerp(player.dashDelta,
+                                 Vector2Zero(),
+                                 DASH_DELTA_LERP_RATE);
 
   player.isInvincible = (roundf(player.dashDelta.x) != 0.0f ||
                          roundf(player.dashDelta.y) != 0.0f);
@@ -972,6 +990,29 @@ void movePlayerWithADash(void) {
   player.position =
     Vector2Add(player.position,
                player.dashDelta);
+
+  if (!player.isInvincible) {
+    return;
+  }
+
+  PlayerDashTrail *new_trail = pushDashTrail();
+  if (!new_trail) {
+    return;
+  }
+
+  *new_trail = (PlayerDashTrail) {
+    .position = player.position,
+    .angle = playerLookingAngle(),
+    .alpha = 1.0f,
+  };
+}
+
+void updatePlayerDashTrails(void) {
+  for (int i = 0; i < PLAYER_DASH_TRAILS_MAX; i++) {
+    dashTrails[i].alpha = Clamp(dashTrails[i].alpha - (GetFrameTime() * 3),
+                                0.0f,
+                                1.0f);
+  }
 }
 
 void processCollisions(void) {
@@ -1334,6 +1375,36 @@ void renderPlayer(void) {
                  WHITE);
 }
 
+void renderDashTrails(void) {
+  for (int i = 0; i < PLAYER_DASH_TRAILS_MAX; i++) {
+    if (dashTrails[i].alpha <= 0) {
+      continue;
+    }
+
+    float w = playerRect.width * SPRITES_SCALE;
+    float h = playerRect.height * SPRITES_SCALE;
+
+    SetShaderValue(dashTrailShader,
+                   dashTrailShaderAlpha,
+                   &dashTrails[i].alpha,
+                   SHADER_UNIFORM_FLOAT);
+
+    BeginShaderMode(dashTrailShader); {
+      DrawTexturePro(sprites,
+                     playerRect,
+                     (Rectangle) {
+                       .x = dashTrails[i].position.x,
+                       .y = dashTrails[i].position.y,
+                       .width = w,
+                       .height = h,
+                     },
+                     (Vector2) {w / 2, h / 2},
+                     dashTrails[i].angle,
+                     WHITE);
+    }; EndShaderMode();
+  }
+}
+
 void renderThrusterTrails(void) {
   for (int i = 0; i < THRUSTER_TRAILS_MAX; i++) {
     if (thrusterTrail[i].alpha <= 0.0f) {
@@ -1570,6 +1641,7 @@ void renderPhase1(void) {
     renderBoss();
 
     renderThrusterTrails();
+    renderDashTrails();
     renderPlayer();
 
     renderProjectiles();
@@ -2117,6 +2189,8 @@ void initPlayer(void) {
   memset(&player, 0, sizeof(player));
   memset(&playerStats, 0, sizeof(playerStats));
 
+  memset(&dashTrails, 0, sizeof(dashTrails));
+
   player = (Player) {
     .position = (Vector2) {
       .x = (float)LEVEL_WIDTH / 2,
@@ -2258,6 +2332,17 @@ void initShaders(void) {
     playerHealthMaskTexture = LoadTextureFromImage(mask);
     UnloadImage(mask);
   }
+
+  {
+    dashTrailShader = LoadShader(NULL, TextFormat("resources/dash-trail-%d.frag", GLSL_VERSION));
+    Vector4 color = ColorNormalize(SKYBLUE);
+    SetShaderValue(dashTrailShader,
+                   GetShaderLocation(dashTrailShader, "trailColor"),
+                   &color,
+                   SHADER_UNIFORM_VEC4);
+
+    dashTrailShaderAlpha = GetShaderLocation(dashTrailShader, "alpha");
+  }
 }
 
 void initTextures(void) {
@@ -2296,6 +2381,7 @@ void updateAndRenderBossFight(void) {
   if (gameState == GAME_BOSS) {
     updateProjectiles();
     updateThrusterTrails();
+    updatePlayerDashTrails();
     updateAsteroids();
     updateBackgroundAsteroid();
 
