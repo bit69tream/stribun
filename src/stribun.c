@@ -2245,6 +2245,8 @@ static Vector2 arenaLerpLocation = {0};
 static float bossInfoTimer = 0;
 
 void updateAndRenderIntroduction(void) {
+  UpdateMusicStream(bossMarineMusic);
+
   switch (introductionStage) {
   case BOSS_INTRODUCTION_BEGINNING: {
     cameraIntroductionTarget = (Vector2) {
@@ -2267,6 +2269,7 @@ void updateAndRenderIntroduction(void) {
       arenaLerp = 0;
 
       PlaySound(borderActivation);
+          PlayMusicStream(bossMarineMusic);
     }
   } break;
   case BOSS_INTRODUCTION_FOCUS: {
@@ -2305,7 +2308,6 @@ void updateAndRenderIntroduction(void) {
 
     if (bossInfoTimer <= 0.0f) {
       gameState = GAME_BOSS;
-      PlayMusicStream(bossMarineMusic);
     }
   } break;
   }
