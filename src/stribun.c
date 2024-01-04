@@ -58,6 +58,7 @@ typedef enum {
   GAME_BOSS,
   GAME_BOSS_DEAD,
   GAME_PLAYER_DEAD,
+  GAME_STATS,
 } GameState;
 
 static Vector2 cameraIntroductionTarget = {0};
@@ -103,6 +104,13 @@ typedef struct {
 
   bool isInvincible;
 } Player;
+
+typedef struct {
+  float time;
+  int kills;
+} PlayerStats;
+
+static PlayerStats playerStats = {0};
 
 #define MAX_BOUNDING_CIRCLES 3
 
@@ -316,6 +324,8 @@ static Vector2 mouseCursor = {0};
 static Player player = {0};
 
 static float time = 0;
+
+static Sound playerDeathSound = {0};
 
 static Sound dashSoundEffect = {0};
 static Sound playerShot = {0};
@@ -724,6 +734,8 @@ void bossMarineAttack(void) {
 
 void updateBossMarine(void) {
   if (bossMarine.health <= 0) {
+    PauseMusicStream(bossMarineMusic);
+    playerStats.kills += 1;
     gameState = GAME_BOSS_DEAD;
 
     for (int i = 0; i < PROJECTILES_MAX; i++) {
@@ -777,7 +789,9 @@ void updateMouse(void) {
   }
 
   mouseCursor = GetScreenToWorld2D(screenMouseLocation, camera);
-  if (gameState == GAME_MAIN_MENU) {
+  if (gameState == GAME_MAIN_MENU ||
+      gameState == GAME_STATS ||
+      gameState == GAME_TUTORIAL) {
     mouseCursor = screenMouseLocation;
   }
 
@@ -1519,17 +1533,17 @@ void renderPhase1(void) {
     renderBackgroundAsteroid();
 
     if (gameState == GAME_BOSS ||
-        (gameState == GAME_BOSS_INTRODUCTION && introductionStage != BOSS_INTRODUCTION_BEGINNING)) {
+        (gameState == GAME_BOSS_INTRODUCTION &&
+         introductionStage != BOSS_INTRODUCTION_BEGINNING)) {
       renderArenaBorder();
     }
 
     renderAsteroids();
 
-    if (gameState == GAME_BOSS_DEAD) {
+    if (gameState == GAME_BOSS_DEAD || gameState == GAME_PLAYER_DEAD) {
       DrawRectangleV(Vector2Zero(),
                      level,
-                     ColorAlpha(BLACK,
-                                blackBackgroundAlpha));
+                     ColorAlpha(BLACK, blackBackgroundAlpha));
     }
 
     renderBoss();
@@ -1759,6 +1773,12 @@ void checkRegularProjectileCollision(int i) {
       CheckCollisionCircles(proj, radius, player.position, PLAYER_HITBOX_RADIUS)) {
     projectiles[i].willBeDestroyed = true;
     player.health -= projectiles[i].damage;
+
+    if (player.health == 0) {
+      gameState = GAME_PLAYER_DEAD;
+      PauseMusicStream(bossMarineMusic);
+      PlaySound(playerDeathSound);
+    }
     return;
   }
 
@@ -1996,6 +2016,63 @@ void initRaylib() {
 #endif
 }
 
+void initBackgroundAsteroid(void) {
+  bigAssAsteroidPosition.x = (float) GetRandomValue(0, LEVEL_WIDTH);
+  bigAssAsteroidPosition.y = (float) GetRandomValue(0, LEVEL_HEIGHT);
+
+  bigAssAsteroidAngle = (float) GetRandomValue(0, 360);
+
+  bigAssAsteroidPositionDelta.x = (float)GetRandomValue(-1, 1) * 0.05f;
+  bigAssAsteroidPositionDelta.y = (float)GetRandomValue(-1, 1) * 0.05f;
+
+  bigAssAsteroidAngleDelta = (float)GetRandomValue(-1, 1) * 0.005f;
+}
+
+void initBossMarine(void) {
+  memset(&bossMarine, 0, sizeof(bossMarine));
+
+  bossMarine = (BossMarine) {
+    .position = {
+      .x = (float)LEVEL_WIDTH / 2,
+      .y = (float)LEVEL_HEIGHT / 2,
+    },
+    .health = BOSS_MARINE_MAX_HEALTH,
+    .boundingCircles = {
+      {{4, -25}, 12},
+      {{25, -14}, 5},
+      {{2, 22}, 15},
+      {{0, 12}, 14},
+      {{7, 10}, 12},
+      {{13, 0}, 7},
+      {{-14, 2}, 8},
+      {{-23, -9}, 12},
+      {{-10, -8}, 14},
+      {{6, -8}, 8},
+      {{17, -11}, 9},
+      {{27, -5}, 8},
+    },
+    .weaponAngle = 0,
+    .horizontalFlip = 1,
+    .walkingDirection = 1,
+    .weaponOffset = bossMarineInitialWeaponOffset,
+  };
+
+  for (int i = 0; i < BOSS_MARINE_BOUNDING_CIRCLES; i++) {
+    bossMarine.boundingCircles[i].position =
+      Vector2Scale(bossMarine.boundingCircles[i].position,
+                   SPRITES_SCALE);
+    bossMarine.boundingCircles[i].radius *= SPRITES_SCALE;
+  }
+};
+
+void initMusic(void) {
+  mainMenuMusic = LoadMusicStream("resources/drozerix_-_stardust_jam.mod");
+  SetMusicVolume(mainMenuMusic, 0.8);
+
+  bossMarineMusic = LoadMusicStream("resources/once_is_not_enough.mod");
+  SetMusicVolume(bossMarineMusic, 0.5);
+}
+
 void initMouse(void) {
   DisableCursor();
 
@@ -2007,6 +2084,7 @@ void initMouse(void) {
 
 void initPlayer(void) {
   memset(&player, 0, sizeof(player));
+  memset(&playerStats, 0, sizeof(playerStats));
 
   player = (Player) {
     .position = (Vector2) {
@@ -2065,6 +2143,8 @@ void initSoundEffects(void) {
 
   bossMarineShotgunSound = LoadSound("resources/shot02.wav");
   bossMarineGunshotSound = LoadSound("resources/shot03.wav");
+
+  playerDeathSound = LoadSound("resources/dead.wav");
 }
 
 void initShaders(void) {
@@ -2347,6 +2427,7 @@ void updateButtons(void) {
         gameState = GAME_TUTORIAL;
       } return;
       case BUTTON_ACTION_TOGGLE_CONTROLS: {
+        PlaySound(beep);
         esdf = !esdf;
       } break;
       case BUTTON_ACTION_QUIT: exit(0);
@@ -2439,7 +2520,6 @@ void renderMainMenu(void) {
   } EndDrawing();
 }
 
-static float mainMenuMusicVolume = 0.8f;
 void updateMainMenuMusic(void) {
   if (!IsMusicStreamPlaying(mainMenuMusic)) {
     PlayMusicStream(mainMenuMusic);
@@ -2554,6 +2634,8 @@ void updateAndRenderTutorial(void) {
     return;
   }
 
+  updateMouse();
+
   float mul = camera.zoom * 2;
   Font f = GetFontDefault();
   float fontSize = 25 * mul;
@@ -2591,6 +2673,7 @@ void updateAndRenderTutorial(void) {
 
     DrawTextPro(f, text1, pos, Vector2Scale(size, 0.5f), 0, fontSize, spacing, WHITE);
 
+    renderMouseCursor();
   } EndDrawing();
 }
 
@@ -2613,7 +2696,17 @@ void updateDeadBoss(void) {
   if (Vector2Distance(bossMarine.weaponOffset, headshotWeaponOffset) < 0.5 &&
       fabsf(bossMarine.weaponAngle) < 0.1f) {
     PlaySound(bossMarineShotgunSound);
-    gameState = GAME_MAIN_MENU;
+    ResumeMusicStream(bossMarineMusic);
+    gameState = GAME_STATS;
+  }
+}
+
+static float deadPlayerTime = 2.0f;
+
+void updateDeadPlayer(void) {
+  if (deadPlayerTime <= 0.0f) {
+    ResumeMusicStream(bossMarineMusic);
+    gameState = GAME_STATS;
   }
 }
 
@@ -2633,6 +2726,77 @@ void updateAndRenderBossDead(void) {
   renderFinal();
 }
 
+void updateAndRenderPlayerDead(void) {
+  blackBackgroundAlpha = Lerp(blackBackgroundAlpha,
+                              1.0f,
+                              0.2f);
+  blackBackgroundAlpha = Clamp(blackBackgroundAlpha,
+                               0, 1);
+
+  deadPlayerTime -= GetFrameTime();
+
+  updateMouse();
+  updateCamera();
+  updateProjectiles();
+  updateDeadPlayer();
+
+  renderPhase1();
+  renderFinal();
+}
+
+void updateAndRenderStats(void) {
+  if (GetKeyPressed() != KEY_NULL ||
+      IsMouseButtonPressed(MOUSE_BUTTON_LEFT) ||
+      IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+    gameState = GAME_MAIN_MENU;
+    initPlayer();
+    initBossMarine();
+    initAsteroids();
+    initBackgroundAsteroid();
+    initProjectiles();
+
+    for (int i = 0; i < THRUSTER_TRAILS_MAX; i++) {
+      thrusterTrail[i].alpha = 0.0f;
+      thrusterTrail[i].origin = Vector2Zero();
+      thrusterTrail[i].angle = 0.0f;
+    }
+
+    return;
+  }
+
+  UpdateMusicStream(bossMarineMusic);
+  updateMouse();
+
+  float mul = camera.zoom * 2;
+  Font f = GetFontDefault();
+  float fontSize = 25 * mul;
+  float spacing = 2 * mul;
+
+  BeginDrawing(); {
+    ClearBackground(BLACK);
+
+    const char *time_stat = TextFormat("TIME: %.2f", playerStats.time);
+    Vector2 pos = {
+      .x = ((float)GetScreenWidth() / 2.0f),
+      .y = ((float)GetScreenHeight() / 2.0f),
+    };
+
+    Vector2 size = MeasureTextEx(f, time_stat, fontSize, spacing);
+
+    pos.y -= size.y / 2;
+
+    DrawTextPro(f, time_stat, pos, Vector2Scale(size, 0.5f), 0, fontSize, spacing, WHITE);
+    pos.y += size.y;
+
+    const char *kills_stat = TextFormat("KILLS: %d", playerStats.kills);
+    size = MeasureTextEx(f, kills_stat, fontSize, spacing);
+
+    DrawTextPro(f, kills_stat, pos, Vector2Scale(size, 0.5f), 0, fontSize, spacing, WHITE);
+
+    renderMouseCursor();
+  } EndDrawing();
+}
+
 void UpdateDrawFrame(void) {
   switch (gameState) {
   case GAME_MAIN_MENU:
@@ -2646,75 +2810,24 @@ void UpdateDrawFrame(void) {
     break;
   case GAME_BOSS:
     updateAndRenderBossFight();
+    playerStats.time += GetFrameTime();
     break;
   case GAME_BOSS_DEAD: {
     updateAndRenderBossDead();
   } break;
   case GAME_PLAYER_DEAD:
-    exit(1);
+    updateAndRenderPlayerDead();
     break;
-    }
+  case GAME_STATS:
+    updateAndRenderStats();
+    break;
+  }
 
   time += GetFrameTime();
 }
 
 float randomFloat(void) {
   return (float)rand() / (float)RAND_MAX;
-}
-
-void initBackgroundAsteroid(void) {
-  bigAssAsteroidPosition.x = (float) GetRandomValue(0, LEVEL_WIDTH);
-  bigAssAsteroidPosition.y = (float) GetRandomValue(0, LEVEL_HEIGHT);
-
-  bigAssAsteroidAngle = (float) GetRandomValue(0, 360);
-
-  bigAssAsteroidPositionDelta.x = (float)GetRandomValue(-1, 1) * 0.05f;
-  bigAssAsteroidPositionDelta.y = (float)GetRandomValue(-1, 1) * 0.05f;
-
-  bigAssAsteroidAngleDelta = (float)GetRandomValue(-1, 1) * 0.005f;
-}
-
-void initBossMarine(void) {
-  bossMarine = (BossMarine) {
-    .position = {
-      .x = (float)LEVEL_WIDTH / 2,
-      .y = (float)LEVEL_HEIGHT / 2,
-    },
-    .health = BOSS_MARINE_MAX_HEALTH,
-    .boundingCircles = {
-      {{4, -25}, 12},
-      {{25, -14}, 5},
-      {{2, 22}, 15},
-      {{0, 12}, 14},
-      {{7, 10}, 12},
-      {{13, 0}, 7},
-      {{-14, 2}, 8},
-      {{-23, -9}, 12},
-      {{-10, -8}, 14},
-      {{6, -8}, 8},
-      {{17, -11}, 9},
-      {{27, -5}, 8},
-    },
-    .weaponAngle = 0,
-    .horizontalFlip = 1,
-    .walkingDirection = 1,
-    .weaponOffset = bossMarineInitialWeaponOffset,
-  };
-
-  for (int i = 0; i < BOSS_MARINE_BOUNDING_CIRCLES; i++) {
-    bossMarine.boundingCircles[i].position =
-      Vector2Scale(bossMarine.boundingCircles[i].position,
-                   SPRITES_SCALE);
-    bossMarine.boundingCircles[i].radius *= SPRITES_SCALE;
-  }
-};
-
-void initMusic(void) {
-  mainMenuMusic = LoadMusicStream("resources/drozerix_-_stardust_jam.mod");
-  SetMusicVolume(mainMenuMusic, mainMenuMusicVolume);
-
-  bossMarineMusic = LoadMusicStream("resources/once_is_not_enough.mod");
-  SetMusicVolume(bossMarineMusic, 0.5);
 }
 
 int main(void) {
