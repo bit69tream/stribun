@@ -125,7 +125,7 @@ static Rectangle bossMarineWeaponRect = {
   .height = 37,
 };
 
-static Vector2 bossMarineWeaponOffset = {
+static Vector2 bossMarineInitialWeaponOffset = {
   .x = 14 * SPRITES_SCALE,
   .y = 6 * SPRITES_SCALE,
 };
@@ -154,6 +154,7 @@ typedef struct {
   Circle processedBoundingCircles[BOSS_MARINE_BOUNDING_CIRCLES];
   Vector2 bulletOrigin;
   float weaponAngle;
+  Vector2 weaponOffset;
 
   float walkingDirection;
   bool isWalking;
@@ -545,8 +546,8 @@ void bossMarineCheckCollisions(void) {
 
 void bossMarineUpdateWeapon(void) {
   Vector2 weaponOffset = (Vector2) {
-    .x = bossMarine.horizontalFlip * bossMarineWeaponOffset.x,
-    .y = bossMarineWeaponOffset.y,
+    .x = bossMarine.horizontalFlip * bossMarine.weaponOffset.x,
+    .y = bossMarine.weaponOffset.y,
   };
 
   bossMarine.weaponAngle =
@@ -580,10 +581,10 @@ void bossMarineWalk(void) {
                                 playerBossAngle * DEG2RAD);
 
   if (playerBossDistance < BOSS_MARINE_MIN_PLAYER_DISTANCE) {
-    bossMarine.position = Vector2Add(bossMarine.position, delta);
-  } else if (playerBossDistance > BOSS_MARINE_MAX_PLAYER_DISTANCE) {
+    bossMarine.position = Vector2Add(bossMarine.position, Vector2Scale(delta, 2));
+  } else if (playerBossDistance > BOSS_MARINE_MAX_PLAYER_DISTANCE && bossMarine.isWalking) {
     bossMarine.position = Vector2Add(bossMarine.position, Vector2Scale(delta, -1));
-  } else {
+  } else if (bossMarine.isWalking) {
     float angle = bossMarine.walkingDirection * BOSS_MARINE_SPEED;
     Vector2 diff = Vector2Subtract(bossMarine.position, player.position);
     diff = Vector2Rotate(diff, angle * DEG2RAD);
@@ -745,9 +746,7 @@ void updateBossMarine(void) {
   }
 
   bossMarineCheckCollisions();
-  if (bossMarine.isWalking) {
-    bossMarineWalk();
-  }
+  bossMarineWalk();
 
   bossMarineAttack();
 
@@ -822,7 +821,7 @@ void tryDashing(void) {
 #define PLAYER_FIRE_COOLDOWN 0.15f
 #define PLAYER_PROJECTILE_RADIUS 9
 #define PLAYER_PROJECTILE_SPEED 30.0f
-#define PLAYER_PROJECTILE_BASE_DAMAGE 256
+#define PLAYER_PROJECTILE_BASE_DAMAGE 4
 
 void tryFiringAShot(void) {
   if (!IsMouseButtonDown(MOUSE_BUTTON_LEFT) ||
@@ -1498,8 +1497,8 @@ void renderBoss(void) {
   DrawTexturePro(sprites,
                  weaponRect,
                  (Rectangle) {
-                   .x = bossMarine.position.x + (bossMarineWeaponOffset.x * bossMarine.horizontalFlip),
-                   .y = bossMarine.position.y + bossMarineWeaponOffset.y,
+                   .x = bossMarine.position.x + (bossMarine.weaponOffset.x * bossMarine.horizontalFlip),
+                   .y = bossMarine.position.y + bossMarine.weaponOffset.y,
                    .width = bossMarineWeaponRect.width * SPRITES_SCALE,
                    .height = bossMarineWeaponRect.height * SPRITES_SCALE,
                  },
@@ -1944,10 +1943,6 @@ void updateCamera(void) {
 
   Vector2 target = player.position;
 
-  if (gameState == GAME_BOSS_DEAD) {
-    target = bossMarine.position;
-  }
-
   Vector2 topLeft = {
     halfScreenWidth,
     halfScreenHeight,
@@ -1957,6 +1952,12 @@ void updateCamera(void) {
     (float)LEVEL_WIDTH - halfScreenWidth,
     (float)LEVEL_HEIGHT - halfScreenHeight,
   };
+
+  if (gameState == GAME_BOSS_DEAD) {
+    target = bossMarine.position;
+    topLeft = Vector2Zero();
+    bottomRight = level;
+  }
 
   camera.offset.x = windowWidth / 2.0f;
   camera.offset.y = windowHeight / 2.0f;
@@ -2593,6 +2594,29 @@ void updateAndRenderTutorial(void) {
   } EndDrawing();
 }
 
+void updateDeadBoss(void) {
+  if (Vector2Distance(camera.target, bossMarine.position) > 5) {
+    return;
+  }
+
+  const Vector2 headshotWeaponOffset = {
+    .x = -45 * SPRITES_SCALE,
+    .y = -19 * SPRITES_SCALE,
+  };
+
+  bossMarine.weaponOffset = Vector2Lerp(bossMarine.weaponOffset,
+                                        headshotWeaponOffset,
+                                        0.1f);
+
+  bossMarine.weaponAngle = Lerp(bossMarine.weaponAngle, 0, 0.1f);
+
+  if (Vector2Distance(bossMarine.weaponOffset, headshotWeaponOffset) < 0.5 &&
+      fabsf(bossMarine.weaponAngle) < 0.1f) {
+    PlaySound(bossMarineShotgunSound);
+    gameState = GAME_MAIN_MENU;
+  }
+}
+
 void updateAndRenderBossDead(void) {
   blackBackgroundAlpha = Lerp(blackBackgroundAlpha,
                               1.0f,
@@ -2603,6 +2627,7 @@ void updateAndRenderBossDead(void) {
   updateMouse();
   updateCamera();
   updateProjectiles();
+  updateDeadBoss();
 
   renderPhase1();
   renderFinal();
@@ -2673,6 +2698,7 @@ void initBossMarine(void) {
     .weaponAngle = 0,
     .horizontalFlip = 1,
     .walkingDirection = 1,
+    .weaponOffset = bossMarineInitialWeaponOffset,
   };
 
   for (int i = 0; i < BOSS_MARINE_BOUNDING_CIRCLES; i++) {
