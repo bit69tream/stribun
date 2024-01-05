@@ -61,6 +61,8 @@ typedef enum {
   GAME_STATS,
 } GameState;
 
+static bool isGamePaused = false;
+
 static Vector2 cameraIntroductionTarget = {0};
 
 static Music mainMenuMusic = {0};
@@ -700,7 +702,7 @@ void bossMarineAttack(void) {
   } break;
   case BOSS_MARINE_SHOOTING: {
     bossMarineUpdateWeapon();
-    bossMarineShoot(0.4f, 0.08f, (float)GetRandomValue(-30, 30), &bossMarineGunshotSound, 10, false, MAROON, GOLD);
+    bossMarineShoot(0.5f, 0.06f, (float)GetRandomValue(-30, 30), &bossMarineGunshotSound, 10, false, MAROON, GOLD);
   } break;
   case BOSS_MARINE_SHOTGUNNING: {
     bossMarineUpdateWeapon();
@@ -726,7 +728,7 @@ void bossMarineAttack(void) {
     }
 
     PlaySound(bossMarineShotgunSound);
-    bossMarine.fireCooldown = 0.7f;
+    bossMarine.fireCooldown = (float)GetRandomValue(5, 10) / 10.0f;
 
   } break;
   case BOSS_MARINE_BOUNCING_WAVES: {
@@ -750,7 +752,7 @@ void bossMarineAttack(void) {
     }
 
     PlaySound(bossMarineShotgunSound);
-    bossMarine.fireCooldown = 1.0f;
+    bossMarine.fireCooldown = (float)GetRandomValue(7, 10) / 10.0f;
   } break;
   };
 }
@@ -812,15 +814,19 @@ void updateMouse(void) {
   }
 
   mouseCursor = GetScreenToWorld2D(screenMouseLocation, camera);
-  if (gameState == GAME_MAIN_MENU ||
-      gameState == GAME_STATS ||
-      gameState == GAME_TUTORIAL) {
-    mouseCursor = screenMouseLocation;
-  }
 
   if (!IsCursorHidden()) {
+    isGamePaused = true;
     DisableCursor();
   }
+
+#ifdef PLATFORM_DESKTOP
+
+  if (!IsWindowFocused() || IsWindowHidden()) {
+    isGamePaused = true;
+  }
+
+#endif
 
   lookingDirection = Vector2Normalize(Vector2Subtract(mouseCursor, player.position));
 }
@@ -1447,8 +1453,8 @@ void renderMouseCursor(void) {
   DrawTexturePro(sprites,
                  mouseCursorRect,
                  (Rectangle) {
-                   .x = mouseCursor.x,
-                   .y = mouseCursor.y,
+                   .x = screenMouseLocation.x,
+                   .y = screenMouseLocation.y,
                    .width = mouseCursorRect.width * MOUSE_CURSOR_SCALE,
                    .height = mouseCursorRect.height * MOUSE_CURSOR_SCALE,
                  },
@@ -1645,11 +1651,6 @@ void renderPhase1(void) {
 
     renderProjectiles();
 
-    if (gameState != GAME_BOSS_INTRODUCTION &&
-        gameState != GAME_PLAYER_DEAD &&
-        gameState != GAME_BOSS_DEAD) {
-      renderMouseCursor();
-    }
   } EndTextureMode();
 }
 
@@ -1833,7 +1834,13 @@ void renderFinal(void) {
       renderBossHealthBar();
     }
 
-    DrawFPS(0, 0);
+    if (gameState != GAME_BOSS_INTRODUCTION &&
+        gameState != GAME_PLAYER_DEAD &&
+        gameState != GAME_BOSS_DEAD &&
+        !isGamePaused) {
+      renderMouseCursor();
+    }
+
   } EndDrawing();
 }
 
@@ -2375,7 +2382,183 @@ void updateBackgroundAsteroid(void) {
   bigAssAsteroidAngle += bigAssAsteroidAngleDelta;
 }
 
+void resetGame(void) {
+  initPlayer();
+  initBossMarine();
+  initAsteroids();
+  initBackgroundAsteroid();
+  initProjectiles();
+
+  for (int i = 0; i < THRUSTER_TRAILS_MAX; i++) {
+    thrusterTrail[i].alpha = 0.0f;
+    thrusterTrail[i].origin = Vector2Zero();
+    thrusterTrail[i].angle = 0.0f;
+  }
+}
+
+static Vector2 previousMousePressLocation = {0};
+void updateAndRenderPauseScreen(void) {
+  updateMouse();
+
+  if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    previousMousePressLocation = screenMouseLocation;
+  }
+
+  float mul = camera.zoom * 2;
+  Font f = GetFontDefault();
+  float fontSize = 25 * mul;
+  float spacing = 2 * mul;
+
+  float w = (float)GetScreenWidth();
+  float h = (float)GetScreenHeight();
+
+  float bw = w / 4.5;
+  float bh = h / 8;
+  float x = w / 2;
+  float y = h / 2 - (bh);
+
+  Rectangle buttonContinue = {x - (bw / 2), y - (bh / 2), bw, bh};
+  Rectangle buttonQuit = {x - (bw / 2), y - (bh / 2) + (bh * 2), bw, bh};
+
+  BeginDrawing(); {
+    ClearBackground(BLACK);
+
+    {
+      float width = (float)target.texture.width;
+      float height = (float)target.texture.height;
+
+      BeginMode2D(camera); {
+        DrawTexturePro(target.texture,
+                       (Rectangle) {
+                         .x = 0,
+                         .y = 0,
+                         .width = width,
+                         .height = -height
+                       },
+                       (Rectangle) {
+                         .x = 0,
+                         .y = 0,
+                         .width = width,
+                         .height = height
+                       },
+                       Vector2Zero(),
+                       0.0f,
+                       WHITE);
+      }; EndMode2D();
+
+      renderBossHealthBar();
+    }
+
+    DrawRectangle(0, 0, w, h,
+                  ColorAlpha(BLACK, 0.5));
+
+    {
+      if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) &&
+          CheckCollisionPointRec(previousMousePressLocation, buttonContinue) &&
+          CheckCollisionPointRec(screenMouseLocation, buttonContinue)) {
+        DrawRectangleRec(buttonContinue,
+                         LIGHTGRAY);
+      } else {
+        DrawRectangleRec(buttonContinue,
+                         WHITE);
+      }
+
+      if (CheckCollisionPointRec(screenMouseLocation, buttonContinue)) {
+        DrawRectangleLinesEx(buttonContinue,
+                             2 * mul,
+                             LIGHTGRAY);
+      }
+
+      char *text = "CONTINUE";
+
+      Vector2 size = MeasureTextEx(f, text, fontSize, spacing);
+
+      Vector2 pos = (Vector2) {
+        .x = (float)buttonContinue.x + buttonContinue.width / 2,
+        .y = (float)buttonContinue.y + buttonContinue.height / 2,
+      };
+
+      DrawTextPro(f,
+                  text,
+                  pos,
+                  Vector2Scale(size, 0.5f),
+                  0,
+                  fontSize,
+                  spacing,
+                  BLACK);
+
+    }
+
+    {
+      if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) &&
+          CheckCollisionPointRec(previousMousePressLocation, buttonQuit) &&
+          CheckCollisionPointRec(screenMouseLocation, buttonQuit)) {
+        DrawRectangleRec(buttonQuit,
+                         LIGHTGRAY);
+      } else {
+        DrawRectangleRec(buttonQuit,
+                         WHITE);
+      }
+
+      if (CheckCollisionPointRec(screenMouseLocation, buttonQuit)) {
+        DrawRectangleLinesEx(buttonQuit,
+                             2 * mul,
+                             LIGHTGRAY);
+      }
+
+      char *text = "QUIT";
+
+      Vector2 size = MeasureTextEx(f, text, fontSize, spacing);
+
+      Vector2 pos = (Vector2) {
+        .x = (float)buttonQuit.x + buttonQuit.width / 2,
+        .y = (float)buttonQuit.y + buttonQuit.height / 2,
+      };
+
+      DrawTextPro(f,
+                  text,
+                  pos,
+                  Vector2Scale(size, 0.5f),
+                  0,
+                  fontSize,
+                  spacing,
+                  BLACK);
+
+    }
+
+    renderMouseCursor();
+  } EndDrawing();
+
+  if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
+    if (CheckCollisionPointRec(previousMousePressLocation, buttonContinue) &&
+        CheckCollisionPointRec(screenMouseLocation, buttonContinue)) {
+      PlaySound(beep);
+      isGamePaused = false;
+    } else if (CheckCollisionPointRec(previousMousePressLocation, buttonQuit) &&
+               CheckCollisionPointRec(screenMouseLocation, buttonQuit)) {
+      PlaySound(beep);
+      isGamePaused = false;
+
+      gameState = GAME_MAIN_MENU;
+      resetGame();
+    }
+  }
+}
+
 void updateAndRenderBossFight(void) {
+  if (IsKeyPressed(KEY_ESCAPE)) {
+    PlaySound(beep);
+    isGamePaused = !isGamePaused;
+  }
+
+  if (isGamePaused) {
+    PauseMusicStream(bossMarineMusic);
+    updateAndRenderPauseScreen();
+    return;
+  }
+
+  ResumeMusicStream(bossMarineMusic);
+
   updateCamera();
 
   if (!IsMusicStreamPlaying(bossMarineMusic)) {
@@ -2384,22 +2567,20 @@ void updateAndRenderBossFight(void) {
 
   UpdateMusicStream(bossMarineMusic);
 
-  if (gameState == GAME_BOSS) {
-    updateProjectiles();
-    updateThrusterTrails();
-    updatePlayerDashTrails();
-    updateAsteroids();
-    updateBackgroundAsteroid();
+  updateProjectiles();
+  updateThrusterTrails();
+  updatePlayerDashTrails();
+  updateAsteroids();
+  updateBackgroundAsteroid();
 
-    updateMouse();
-    updatePlayerPosition();
-    updatePlayerCooldowns();
+  updateMouse();
+  updatePlayerPosition();
+  updatePlayerCooldowns();
 
-    updateBossMarine();
+  updateBossMarine();
 
-    tryDashing();
-    tryFiringAShot();
-  }
+  tryDashing();
+  tryFiringAShot();
 
   renderPhase1();
   renderFinal();
@@ -2451,10 +2632,10 @@ void updateFloatingShip(void) {
   float halfWidth = (float)GetScreenWidth() / 2;
 
   float scale = 1;
-  if (mouseCursor.x > halfWidth) {
-    scale = (mouseCursor.x - halfWidth) / halfWidth;
+  if (screenMouseLocation.x > halfWidth) {
+    scale = (screenMouseLocation.x - halfWidth) / halfWidth;
   } else {
-    scale = (halfWidth - mouseCursor.x) / halfWidth;
+    scale = (halfWidth - screenMouseLocation.x) / halfWidth;
     scale *= -1;
   }
 
@@ -2543,7 +2724,7 @@ void updateButtons(void) {
 
     if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT) &&
         CheckCollisionPointRec(mousePressLocation, mainMenuButtons[i].rect) &&
-        CheckCollisionPointRec(mouseCursor, mainMenuButtons[i].rect)) {
+        CheckCollisionPointRec(screenMouseLocation, mainMenuButtons[i].rect)) {
       switch (i) {
       case BUTTON_ACTION_START: {
         PlaySound(beep);
@@ -2562,9 +2743,8 @@ void updateButtons(void) {
   }
 
   if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-    mousePressLocation = mouseCursor;
+    mousePressLocation = screenMouseLocation;
   }
-
 }
 
 void renderButtons(void) {
@@ -2576,7 +2756,7 @@ void renderButtons(void) {
   for (int i = 0; i < BUTTON_ACTION_COUNT; i++) {
     if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) &&
         CheckCollisionPointRec(mousePressLocation, mainMenuButtons[i].rect) &&
-        CheckCollisionPointRec(mouseCursor, mainMenuButtons[i].rect)) {
+        CheckCollisionPointRec(screenMouseLocation, mainMenuButtons[i].rect)) {
       DrawRectangleRec(mainMenuButtons[i].rect,
                        LIGHTGRAY);
     } else {
@@ -2584,7 +2764,7 @@ void renderButtons(void) {
                        WHITE);
     }
 
-    if (CheckCollisionPointRec(mouseCursor, mainMenuButtons[i].rect)) {
+    if (CheckCollisionPointRec(screenMouseLocation, mainMenuButtons[i].rect)) {
       DrawRectangleLinesEx(mainMenuButtons[i].rect,
                            2 * mul,
                            LIGHTGRAY);
@@ -2730,6 +2910,7 @@ void updateAndRenderIntroduction(void) {
 
     if (bossInfoTimer <= 0.0f) {
       gameState = GAME_BOSS;
+      isGamePaused = false;
       bossMarine.attackTimer = 0.5f;
       bossMarine.currentAttack = BOSS_MARINE_NOT_SHOOTING;
     }
@@ -2872,17 +3053,7 @@ void updateAndRenderStats(void) {
       IsMouseButtonPressed(MOUSE_BUTTON_LEFT) ||
       IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
     gameState = GAME_MAIN_MENU;
-    initPlayer();
-    initBossMarine();
-    initAsteroids();
-    initBackgroundAsteroid();
-    initProjectiles();
-
-    for (int i = 0; i < THRUSTER_TRAILS_MAX; i++) {
-      thrusterTrail[i].alpha = 0.0f;
-      thrusterTrail[i].origin = Vector2Zero();
-      thrusterTrail[i].angle = 0.0f;
-    }
+    resetGame();
 
     return;
   }
