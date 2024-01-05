@@ -319,6 +319,7 @@ typedef struct {
   Vector2 delta;
 
   Circle processedBoundingCircles[MAX_BOUNDING_CIRCLES];
+  bool launchedByPlayer;
 } Asteroid;
 
 #define MIN_ASTEROIDS 4
@@ -431,6 +432,9 @@ void checkForCollisionsBetweenAsteroids(int i, int k) {
 
         asteroids[i].delta = Vector2Add(asteroids[i].delta, offset);
         asteroids[k].delta = Vector2Subtract(asteroids[k].delta, offset);
+
+        asteroids[i].launchedByPlayer = false;
+        asteroids[k].launchedByPlayer = true;
         return;
       }
     }
@@ -452,21 +456,25 @@ void checkForCollisionsBetweenAsteroidsAndBorders(void) {
 
       if ((pos.y - r) <= 0) {
         asteroids[i].delta = Vector2Reflect(asteroids[i].delta, normalDown);
+        asteroids[i].launchedByPlayer = false;
         break;
       }
 
       if ((pos.x - r) <= 0) {
         asteroids[i].delta = Vector2Reflect(asteroids[i].delta, normalRight);
+        asteroids[i].launchedByPlayer = false;
         break;
       }
 
       if ((pos.y + r) >= LEVEL_HEIGHT - 1) {
         asteroids[i].delta = Vector2Reflect(asteroids[i].delta, normalUp);
+        asteroids[i].launchedByPlayer = false;
         break;
       }
 
       if ((pos.x + r) >= LEVEL_WIDTH - 1) {
         asteroids[i].delta = Vector2Reflect(asteroids[i].delta, normalLeft);
+        asteroids[i].launchedByPlayer = false;
         break;
       }
     }
@@ -546,6 +554,16 @@ void bossMarineCheckCollisions(void) {
           (asteroids[ai].processedBoundingCircles[abi].radius + r);
 
         if (distance < radiusSum) {
+
+          if (asteroids[ai].launchedByPlayer) {
+#define ASTEROID_BASE_DAMAGE 4
+            float damageMultiplier = Vector2Length(asteroids[ai].delta);
+            bossMarine.health = (int)Clamp(bossMarine.health - (damageMultiplier * ASTEROID_BASE_DAMAGE),
+                                           0.0f,
+                                           BOSS_MARINE_MAX_HEALTH);
+            asteroids[ai].launchedByPlayer = false;
+          }
+
           float angle = angleBetweenPoints(bcPos, asteroids[ai].position) * DEG2RAD;
 
           float offsetDistance = distance - radiusSum;
@@ -1032,12 +1050,22 @@ void processCollisions(void) {
         (asteroids[i].processedBoundingCircles[j].radius + PLAYER_HITBOX_RADIUS);
 
       if (distance < radiusSum) {
-        float angle = angleBetweenPoints(pos, player.position) * DEG2RAD;
+        float angle = angleBetweenPoints(pos, player.position);
+
+        if (player.isInvincible) {
+          angle += 180;
+        }
 
         float offsetDistance = distance - radiusSum;
-        Vector2 playerOffset = Vector2Rotate((Vector2) {0, offsetDistance}, angle);
+        Vector2 offset = Vector2Rotate((Vector2) {0, offsetDistance}, angle * DEG2RAD);
 
-        player.position = Vector2Add(player.position, playerOffset);
+        if (player.isInvincible) {
+          asteroids[i].position = Vector2Add(asteroids[i].position, offset);
+          asteroids[i].delta = Vector2Add(asteroids[i].delta, Vector2Scale(offset, 0.2f));
+          asteroids[i].launchedByPlayer = true;
+        } else {
+          player.position = Vector2Add(player.position, offset);
+        }
       }
     }
   }
