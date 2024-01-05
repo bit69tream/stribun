@@ -1395,7 +1395,7 @@ void renderPlayer(void) {
   float alpha = 1.0;
 
   if (player.iframeTimer > 0.0f) {
-    float a = sinf(time * 10) * .5 + 1.;
+    float a = sinf(time * 40) * .5 + 1.;
     alpha = Remap(a,
                   0, 1,
                   0.7, 1.0);
