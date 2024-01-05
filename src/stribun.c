@@ -41,6 +41,8 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
+static bool seenTutorial = false;
+
 static bool esdf = false;
 
 typedef enum {
@@ -337,6 +339,7 @@ static Sound playerDeathSound = {0};
 static Sound dashSoundEffect = {0};
 static Sound playerShot = {0};
 static Sound beep = {0};
+static Sound hit = {0};
 static Sound borderActivation = {0};
 
 static Sound bossMarineShotgunSound = {0};
@@ -537,7 +540,7 @@ float playerLookingAngle(void) {
   return angle;
 }
 
-void bossMarineCheckCollisions(void) {
+void bossMarineCheckCollisions(bool sendAsteroidsFlying) {
   for (int i = 0; i < BOSS_MARINE_BOUNDING_CIRCLES; i++) {
     Vector2 bcPos = Vector2Add(bossMarine.processedBoundingCircles[i].position,
                                bossMarine.position);
@@ -570,7 +573,9 @@ void bossMarineCheckCollisions(void) {
           Vector2 asteroidOffset = Vector2Rotate((Vector2) {0, offsetDistance}, angle);
 
           asteroids[ai].position = Vector2Add(asteroids[ai].position, asteroidOffset);
-          asteroids[ai].delta = Vector2Add(asteroids[ai].delta, asteroidOffset);
+          if (sendAsteroidsFlying) {
+            asteroids[ai].delta = Vector2Add(asteroids[ai].delta, Vector2Scale(asteroidOffset, 0.5));
+          }
         }
       }
     }
@@ -800,7 +805,7 @@ void updateBossMarine(void) {
     bossMarine.processedBoundingCircles[i].position.x *= bossMarine.horizontalFlip;
   }
 
-  bossMarineCheckCollisions();
+  bossMarineCheckCollisions(true);
   bossMarineWalk();
 
   bossMarineAttack();
@@ -1387,6 +1392,15 @@ void renderPlayerTexture(void) {
 }
 
 void renderPlayer(void) {
+  float alpha = 1.0;
+
+  if (player.iframeTimer > 0.0f) {
+    float a = sinf(time * 10) * .5 + 1.;
+    alpha = Remap(a,
+                  0, 1,
+                  0.7, 1.0);
+  }
+
   DrawTexturePro(playerTexture.texture,
                  (Rectangle) {
                    .x = 0,
@@ -1405,7 +1419,7 @@ void renderPlayer(void) {
                    .y = (playerRect.height * SPRITES_SCALE) / 2,
                  },
                  playerLookingAngle(),
-                 WHITE);
+                 ColorAlpha(WHITE, alpha));
 }
 
 void renderDashTrails(void) {
@@ -1476,7 +1490,7 @@ void updateThrusterTrails(void) {
   }
 }
 
-#define MOUSE_CURSOR_SCALE 2
+#define MOUSE_CURSOR_SCALE (SPRITES_SCALE)
 void renderMouseCursor(void) {
   DrawTexturePro(sprites,
                  mouseCursorRect,
@@ -1907,8 +1921,9 @@ void checkRegularProjectileCollision(int i) {
     projectiles[i].willBeDestroyed = true;
 
     if (player.iframeTimer == 0.0f) {
+      PlaySound(hit);
       player.health -= projectiles[i].damage;
-      player.iframeTimer = 0.2f;
+      player.iframeTimer = 0.3f;
     }
 
     if (player.health == 0) {
@@ -2207,6 +2222,8 @@ void initBossMarine(void) {
                    SPRITES_SCALE);
     bossMarine.boundingCircles[i].radius *= SPRITES_SCALE;
   }
+
+  bossMarineCheckCollisions(false);
 };
 
 void initMusic(void) {
@@ -2283,6 +2300,8 @@ void initSoundEffects(void) {
   SetSoundVolume(playerShot, 0.5);
 
   beep = LoadSound("resources/beep.wav");
+  hit = LoadSound("resources/hit.wav");
+  SetSoundVolume(hit, 0.7);
 
   borderActivation = LoadSound("resources/border.wav");
   SetSoundVolume(borderActivation, 0.3);
@@ -2411,9 +2430,11 @@ void updateBackgroundAsteroid(void) {
 }
 
 void resetGame(void) {
+  StopMusicStream(bossMarineMusic);
+
+  initAsteroids();
   initPlayer();
   initBossMarine();
-  initAsteroids();
   initBackgroundAsteroid();
   initProjectiles();
 
@@ -2474,11 +2495,12 @@ void updateAndRenderPauseScreen(void) {
                        WHITE);
       }; EndMode2D();
 
-      renderBossHealthBar();
+      if (gameState == GAME_BOSS) {
+        renderBossHealthBar();
+      }
     }
 
-    DrawRectangle(0, 0, w, h,
-                  ColorAlpha(BLACK, 0.5));
+    DrawRectangle(0, 0, w, h, ColorAlpha(BLACK, 0.7));
 
     {
       if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) &&
@@ -2959,7 +2981,9 @@ void updateAndRenderIntroduction(void) {
 void updateAndRenderTutorial(void) {
   if (GetKeyPressed() != KEY_NULL ||
       IsMouseButtonPressed(MOUSE_BUTTON_LEFT) ||
-      IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+      IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) ||
+      seenTutorial) {
+    seenTutorial = true;
     gameState = GAME_BOSS_INTRODUCTION;
     introductionStage = BOSS_INTRODUCTION_BEGINNING;
     lookingDirection = Vector2Zero();
@@ -3167,6 +3191,8 @@ int main(void) {
   initMusic();
 
   initBossMarine();
+
+  seenTutorial = false;
 
   /* fix fragTexCoord for rectangles */
   Texture2D t = { rlGetTextureIdDefault(), 1, 1, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 };
