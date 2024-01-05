@@ -340,6 +340,7 @@ static Sound dashSoundEffect = {0};
 static Sound playerShot = {0};
 static Sound beep = {0};
 static Sound hit = {0};
+static Sound buttonFocusEffect = {0};
 static Sound borderActivation = {0};
 
 static Sound bossMarineShotgunSound = {0};
@@ -2303,6 +2304,9 @@ void initSoundEffects(void) {
   hit = LoadSound("resources/hit.wav");
   SetSoundVolume(hit, 0.7);
 
+  buttonFocusEffect = LoadSound("resources/hit.wav");
+  SetSoundVolume(buttonFocusEffect, 0.1);
+
   borderActivation = LoadSound("resources/border.wav");
   SetSoundVolume(borderActivation, 0.3);
 
@@ -2446,6 +2450,7 @@ void resetGame(void) {
 }
 
 static Vector2 previousMousePressLocation = {0};
+static Vector2 previousMouseLocation = {0};
 void updateAndRenderPauseScreen(void) {
   updateMouse();
 
@@ -2503,6 +2508,12 @@ void updateAndRenderPauseScreen(void) {
     DrawRectangle(0, 0, w, h, ColorAlpha(BLACK, 0.7));
 
     {
+      if (!CheckCollisionPointRec(previousMouseLocation, buttonContinue) &&
+          CheckCollisionPointRec(screenMouseLocation, buttonContinue)) {
+        PlaySound(buttonFocusEffect);
+      }
+
+
       if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) &&
           CheckCollisionPointRec(previousMousePressLocation, buttonContinue) &&
           CheckCollisionPointRec(screenMouseLocation, buttonContinue)) {
@@ -2540,6 +2551,12 @@ void updateAndRenderPauseScreen(void) {
     }
 
     {
+
+      if (!CheckCollisionPointRec(previousMouseLocation, buttonQuit) &&
+          CheckCollisionPointRec(screenMouseLocation, buttonQuit)) {
+        PlaySound(buttonFocusEffect);
+      }
+
       if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) &&
           CheckCollisionPointRec(previousMousePressLocation, buttonQuit) &&
           CheckCollisionPointRec(screenMouseLocation, buttonQuit)) {
@@ -2593,6 +2610,8 @@ void updateAndRenderPauseScreen(void) {
       resetGame();
     }
   }
+
+  previousMouseLocation = screenMouseLocation;
 }
 
 void updateAndRenderBossFight(void) {
@@ -2759,6 +2778,7 @@ typedef struct {
 
 static Button mainMenuButtons[BUTTON_ACTION_COUNT] = {0};
 static Vector2 mousePressLocation = {0};
+static Vector2 prevMouseLocation = {0};
 
 void updateButtons(void) {
   float x = (float)GetScreenWidth() - (float)GetScreenWidth() / 4;
@@ -2771,6 +2791,11 @@ void updateButtons(void) {
     mainMenuButtons[i].rect = (Rectangle) {
       x, y, width, height,
     };
+
+    if (!CheckCollisionPointRec(prevMouseLocation, mainMenuButtons[i].rect) &&
+        CheckCollisionPointRec(screenMouseLocation, mainMenuButtons[i].rect)) {
+      PlaySound(buttonFocusEffect);
+    }
 
     if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT) &&
         CheckCollisionPointRec(mousePressLocation, mainMenuButtons[i].rect) &&
@@ -2795,6 +2820,8 @@ void updateButtons(void) {
   if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
     mousePressLocation = screenMouseLocation;
   }
+
+  prevMouseLocation = screenMouseLocation;
 }
 
 void renderButtons(void) {
@@ -2983,6 +3010,8 @@ void updateAndRenderTutorial(void) {
       IsMouseButtonPressed(MOUSE_BUTTON_LEFT) ||
       IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) ||
       seenTutorial) {
+    PlaySound(beep);
+
     seenTutorial = true;
     gameState = GAME_BOSS_INTRODUCTION;
     introductionStage = BOSS_INTRODUCTION_BEGINNING;
