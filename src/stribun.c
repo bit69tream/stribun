@@ -3133,6 +3133,8 @@ void updateAndRenderStats(void) {
   if (GetKeyPressed() != KEY_NULL ||
       IsMouseButtonPressed(MOUSE_BUTTON_LEFT) ||
       IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+    PlaySound(beep);
+
     gameState = GAME_MAIN_MENU;
     resetGame();
 
@@ -3158,7 +3160,7 @@ void updateAndRenderStats(void) {
 
     Vector2 size = MeasureTextEx(f, time_stat, fontSize, spacing);
 
-    pos.y -= size.y / 2;
+    pos.y -= size.y / 1.5;
 
     DrawTextPro(f, time_stat, pos, Vector2Scale(size, 0.5f), 0, fontSize, spacing, WHITE);
     pos.y += size.y;
@@ -3167,6 +3169,12 @@ void updateAndRenderStats(void) {
     size = MeasureTextEx(f, kills_stat, fontSize, spacing);
 
     DrawTextPro(f, kills_stat, pos, Vector2Scale(size, 0.5f), 0, fontSize, spacing, WHITE);
+
+    const char *cont = "PRESS ANY KEY TO CONTINUE";
+    pos.y += size.y;
+
+    size = MeasureTextEx(f, cont, fontSize, spacing);
+    DrawTextPro(f, cont, pos, Vector2Scale(size, 0.5f), 0, fontSize, spacing, WHITE);
 
     renderMouseCursor();
   } EndDrawing();
