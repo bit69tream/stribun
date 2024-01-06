@@ -2471,7 +2471,9 @@ static Vector2 previousMouseLocation = {0};
 void updateAndRenderPauseScreen(void) {
   updateMouse();
 
-  if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+  bool pressed = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+
+  if (pressed) {
     previousMousePressLocation = screenMouseLocation;
   }
 
@@ -2626,7 +2628,7 @@ void updateAndRenderPauseScreen(void) {
     }
   }
 
-  printf("(%.2f %.2f) (%.2f %.2f) %d\n", previousMousePressLocation.x, previousMousePressLocation.y, screenMouseLocation.x, screenMouseLocation.y, IsMouseButtonDown(MOUSE_BUTTON_LEFT));
+  printf("%d\n", IsMouseButtonReleased(MOUSE_BUTTON_LEFT));
 
   previousMouseLocation = screenMouseLocation;
 }
