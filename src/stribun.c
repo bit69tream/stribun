@@ -2782,7 +2782,9 @@ void renderMusicAuthor(void) {
 typedef enum {
   BUTTON_ACTION_START,
   BUTTON_ACTION_TOGGLE_CONTROLS,
+#ifdef PLATFORM_DESKTOP
   BUTTON_ACTION_QUIT,
+#endif
   BUTTON_ACTION_COUNT,
 } ButtonAction;
 
@@ -2824,7 +2826,9 @@ void updateButtons(void) {
         PlaySound(beep);
         esdf = !esdf;
       } break;
+#ifdef PLATFORM_DESKTOP
       case BUTTON_ACTION_QUIT: exit(0);
+#endif
       default: break;
       }
     }
@@ -2867,7 +2871,9 @@ void renderButtons(void) {
     switch (mainMenuButtons[i].action) {
     case BUTTON_ACTION_START: text = "START"; break;
     case BUTTON_ACTION_TOGGLE_CONTROLS: text = esdf ? "ESDF" : "WASD"; break;
+#ifdef PLATFORM_DESKTOP
     case BUTTON_ACTION_QUIT: text = "QUIT"; break;
+#endif
     default: continue;
     };
 
