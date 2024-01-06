@@ -849,7 +849,9 @@ void updateMouse(void) {
 
   if (!IsCursorHidden()) {
     isGamePaused = true;
+#ifndef PLATFORM_WEB
     DisableCursor();
+#endif
   }
 
 #ifdef PLATFORM_DESKTOP
@@ -2246,9 +2248,7 @@ void initMusic(void) {
 }
 
 void initMouse(void) {
-#ifdef PLATFORM_DESKTOP
   DisableCursor();
-#endif
 
   screenMouseLocation = (Vector2) {
     .x = (float)screenWidth / 2,
