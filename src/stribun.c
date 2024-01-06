@@ -747,16 +747,33 @@ void bossMarineAttack(void) {
       (void) i;
 
       float spread = (float)GetRandomValue(-30, 30);
-      float speed = (float)GetRandomValue(1, 10) / 10.0f * 0.8f;
+      float speed = (float)GetRandomValue(5, 10) / 10.0f * 0.8f;
 
-      bossMarineShoot(speed,
-                      0,
-                      spread,
-                      NULL,
-                      5.0f,
-                      false,
-                      MAROON,
-                      GOLD);
+      Projectile *new_projectile = push_projectile();
+
+      if (new_projectile == NULL) {
+        return;
+      }
+
+      *new_projectile = (Projectile) {
+        .type = PROJECTILE_SQUARED,
+        .isHurtfulForBoss = false,
+        .isHurtfulForPlayer = true,
+        .damage = BOSS_MARINE_BASE_DAMAGE,
+        .origin = Vector2Add(bossMarine.position, bossMarine.bulletOrigin),
+        .size = (Vector2) {
+          .x = BOSS_MARINE_PROJECTILE_RADIUS * 2,
+          .y = BOSS_MARINE_PROJECTILE_RADIUS * 4,
+        },
+        .delta = Vector2Rotate(Vector2Scale((Vector2) {bossMarine.horizontalFlip, 0},
+                                            BOSS_MARINE_PROJECTILE_SPEED * speed),
+                               (bossMarine.weaponAngle + spread) * DEG2RAD),
+        .angle = (bossMarine.weaponAngle + spread + 90),
+        .inside = MAROON,
+        .outside = GOLD,
+        .lifetime = 5.0f,
+        .canBounce = false,
+      };
     }
 
     PlaySound(bossMarineShotgunSound);
@@ -1981,11 +1998,24 @@ void checkSquaredProjectileCollision(int i) {
     }
   }
 
-  if (projectiles[i].isHurtfulForPlayer &&
+  if (!player.isInvincible &&
+      !projectiles[i].willBeDestroyed &&
+      projectiles[i].isHurtfulForPlayer &&
       doesRectangleCollideWithACircle(proj, angle,
                                       player.position, PLAYER_HITBOX_RADIUS)) {
     projectiles[i].willBeDestroyed = true;
-    player.health -= projectiles[i].damage;
+
+    if (player.iframeTimer == 0.0f) {
+      PlaySound(hit);
+      player.health -= projectiles[i].damage;
+      player.iframeTimer = 0.3f;
+    }
+
+    if (player.health == 0) {
+      gameState = GAME_PLAYER_DEAD;
+      PauseMusicStream(bossMarineMusic);
+      PlaySound(playerDeathSound);
+    }
     return;
   }
 
