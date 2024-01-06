@@ -5,6 +5,7 @@ precision mediump float;
 varying vec2 fragTexCoord;
 
 uniform float time;
+uniform float dom;
 uniform vec2 resolution;
 
 uniform sampler2D texture0;
@@ -46,9 +47,13 @@ void main() {
   float c = noiseColor1.r;
   float c2 = noiseColor2.r;
 
-  vec4 nebulaColor = vec4((nebulaBlue * c) +
-                          (nebulaRed * c2),
-                          .9) * smoothstep(.1, 1., c2);
+  vec4 nebulaColor =
+    vec4((nebulaBlue * c) +
+         (nebulaRed * c2),
+         .9) *
+    smoothstep(.1, 1.,
+               (c2 * float(dom == 1.)) +
+               (c  * float(dom != 1.)));
 
   vec2 uv = vec2(fragTexCoord.x, 1.-fragTexCoord.y) - .5;
 

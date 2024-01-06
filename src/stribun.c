@@ -160,6 +160,7 @@ typedef enum {
 typedef struct {
   Vector2 position;
   int health;
+
   /* positions are relative */
   Circle boundingCircles[BOSS_MARINE_BOUNDING_CIRCLES];
 
@@ -178,6 +179,13 @@ typedef struct {
 } BossMarine;
 
 BossMarine bossMarine = {0};
+
+typedef enum {
+  BOSS_MARINE,
+  BOSS_BALL,
+} BossType;
+
+BossType currentBoss = BOSS_MARINE;
 
 #define BACKGROUND_PARALLAX_OFFSET 16
 
@@ -2188,6 +2196,8 @@ void initBackgroundAsteroid(void) {
 }
 
 void initBossMarine(void) {
+  currentBoss = BOSS_MARINE;
+
   memset(&bossMarine, 0, sizeof(bossMarine));
   memset(bossMarineAttacks, 0, sizeof(bossMarineAttacks));
 
@@ -2320,15 +2330,15 @@ void initShaders(void) {
   time = 0;
 
   {
-#define NEBULAE_NOISE_DOWNSCALE_FACTOR 4
+#define NEBULAE_NOISE_DOWNSCALE_FACTOR 1
 
     Image n = GenImagePerlinNoise(background.x / NEBULAE_NOISE_DOWNSCALE_FACTOR,
                                   background.y / NEBULAE_NOISE_DOWNSCALE_FACTOR,
-                                  0, 0, 8);
+                                  0, 0, 4);
+
     nebulaNoise = LoadTextureFromImage(n);
     /* SetTextureFilter(nebulaNoise, TEXTURE_FILTER_BILINEAR); */
     UnloadImage(n);
-
   }
 
   {
@@ -2370,6 +2380,11 @@ void initShaders(void) {
                    GetShaderLocation(stars, "resolution"),
                    &background,
                    SHADER_UNIFORM_VEC2);
+    float dom = 1.0f;
+    SetShaderValue(stars,
+                   GetShaderLocation(stars, "dom"),
+                   &dom,
+                   SHADER_UNIFORM_FLOAT);
   }
 
   {
