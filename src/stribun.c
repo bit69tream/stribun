@@ -849,9 +849,7 @@ void updateMouse(void) {
 
   if (!IsCursorHidden()) {
     isGamePaused = true;
-#ifndef PLATFORM_WEB
     DisableCursor();
-#endif
   }
 
 #ifdef PLATFORM_DESKTOP
@@ -2466,10 +2464,20 @@ void resetGame(void) {
   }
 }
 
+static bool pauseMouseWasDown = false;
+
 static Vector2 previousMousePressLocation = {0};
 static Vector2 previousMouseLocation = {0};
 void updateAndRenderPauseScreen(void) {
   updateMouse();
+
+  bool isMouseDown = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+  bool released = false;
+
+  if (isMouseDown == false && pauseMouseWasDown == true) {
+    released = true;
+  }
+  pauseMouseWasDown = isMouseDown;
 
   bool pressed = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
 
@@ -2613,7 +2621,7 @@ void updateAndRenderPauseScreen(void) {
     renderMouseCursor();
   } EndDrawing();
 
-  if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
+  if (released) {
     if (CheckCollisionPointRec(previousMousePressLocation, buttonContinue) &&
         CheckCollisionPointRec(screenMouseLocation, buttonContinue)) {
       PlaySound(beep);
@@ -2627,8 +2635,6 @@ void updateAndRenderPauseScreen(void) {
       resetGame();
     }
   }
-
-  printf("%d\n", IsMouseButtonReleased(MOUSE_BUTTON_LEFT));
 
   previousMouseLocation = screenMouseLocation;
 }
