@@ -2246,7 +2246,9 @@ void initMusic(void) {
 }
 
 void initMouse(void) {
+#ifdef PLATFORM_DESKTOP
   DisableCursor();
+#endif
 
   screenMouseLocation = (Vector2) {
     .x = (float)screenWidth / 2,
@@ -2562,7 +2564,6 @@ void updateAndRenderPauseScreen(void) {
                   fontSize,
                   spacing,
                   BLACK);
-
     }
 
     {
@@ -2605,7 +2606,6 @@ void updateAndRenderPauseScreen(void) {
                   fontSize,
                   spacing,
                   BLACK);
-
     }
 
     renderMouseCursor();
@@ -2802,6 +2802,10 @@ void updateButtons(void) {
   float width = (float)GetScreenWidth() / 4.5;
   float height = (float)GetScreenHeight() / 8;
   float y = (float)GetScreenHeight() / 3 + (height);
+
+#ifdef PLATFORM_WEB
+  y += height;
+#endif
 
   for (int i = 0; i < BUTTON_ACTION_COUNT; i++) {
     mainMenuButtons[i].action = i;
