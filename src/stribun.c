@@ -2626,6 +2626,8 @@ void updateAndRenderPauseScreen(void) {
     }
   }
 
+  printf("(%.2f %.2f) (%.2f %.2f) %d\n", previousMousePressLocation.x, previousMousePressLocation.y, screenMouseLocation.x, screenMouseLocation.y, IsMouseButtonPressed(MOUSE_BUTTON_LEFT));
+
   previousMouseLocation = screenMouseLocation;
 }
 
