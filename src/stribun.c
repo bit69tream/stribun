@@ -244,6 +244,7 @@ static int arenaBorderTime = 0;
 
 static Shader stars = {0};
 static int starsTime = 0;
+static int starsDom = 0;
 
 static Shader dashTrailShader = {0};
 static int dashTrailShaderAlpha = {0};
@@ -1179,7 +1180,7 @@ void updatePlayerPosition(void) {
                  });
 }
 
-void renderBackground(void) {
+void renderBackground(bool dom) {
   Vector2 pos = player.position;
 
   if (gameState == GAME_MAIN_MENU) {
@@ -1192,6 +1193,9 @@ void renderBackground(void) {
   float background_y = Lerp(0, BACKGROUND_PARALLAX_OFFSET,
                             pos.y / LEVEL_HEIGHT);
 
+  float domv = dom ? 1.0f : 0.0f;
+
+  SetShaderValue(stars, starsDom, &domv, SHADER_UNIFORM_FLOAT);
   SetShaderValue(stars, starsTime, &time, SHADER_UNIFORM_FLOAT);
 
   BeginBlendMode(BLEND_ALPHA); {
@@ -1801,7 +1805,7 @@ void renderPhase1(void) {
   BeginTextureMode(target); {
     ClearBackground(BLACK);
 
-    renderBackground();
+    renderBackground(currentBoss != BOSS_BALL);
     renderBackgroundAsteroid();
 
     if (gameState == GAME_BOSS ||
@@ -2710,15 +2714,13 @@ void initShaders(void) {
   {
     stars = LoadShader(NULL, TextFormat("resources/stars-%d.frag", GLSL_VERSION));
     starsTime = GetShaderLocation(stars, "time");
+
     SetShaderValue(stars,
                    GetShaderLocation(stars, "resolution"),
                    &background,
                    SHADER_UNIFORM_VEC2);
-    float dom = 1.0f;
-    SetShaderValue(stars,
-                   GetShaderLocation(stars, "dom"),
-                   &dom,
-                   SHADER_UNIFORM_FLOAT);
+
+    starsDom = GetShaderLocation(stars, "dom");
   }
 
   {
@@ -3089,7 +3091,7 @@ void renderGameTitle(void) {
 
 void renderPhase0(void) {
   BeginTextureMode(target); {
-    renderBackground();
+    renderBackground(true);
   } EndTextureMode();
 }
 
@@ -3777,7 +3779,7 @@ int main(void) {
   initBossMarine();
   initBossBall();
 
-  currentBoss = BOSS_MARINE;
+  currentBoss = BOSS_BALL;
   seenTutorial = false;
 
   /* fix fragTexCoord for rectangles */
