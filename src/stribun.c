@@ -208,6 +208,9 @@ static Light bossBallLight = {0};
 static Camera bossBallCamera = {0};
 static Music bossBallMusic = {0};
 
+static RenderTexture2D bossBallTarget = {0};
+static RenderTexture2D bossBallTargetScreen = {0};
+
 #define BOSS_BALL_HITBOX_RADIUS 90
 
 typedef struct {
@@ -298,6 +301,9 @@ static Rectangle playerHealthOverlayMaskRect = {
 static Shader playerHealthOverlayShader = {0};
 static int playerHealthOverlayHealth = 0;
 static Texture2D playerHealthMaskTexture = {0};
+
+static Shader pixelationShader = {0};
+static int pixelationShaderPixelSize = {0};
 
 static Rectangle playerRect = {
   .x = 0,
@@ -1730,6 +1736,25 @@ Ray traceRay(Vector2 pos, Camera camera) {
 }
 
 void renderBossBall(void) {
+  const float pixelSize = 4.0;
+
+  SetShaderValue(pixelationShader,
+                 pixelationShaderPixelSize,
+                 &pixelSize,
+                 SHADER_UNIFORM_FLOAT);
+
+  BeginShaderMode(pixelationShader); {
+    DrawTextureRec(bossBallTarget.texture,
+                   (Rectangle) {
+                     0, 0,
+                     bossBallTarget.texture.width, -bossBallTarget.texture.height
+                   },
+                   Vector2Zero(),
+                   WHITE);
+  } EndShaderMode();
+}
+
+void prerenderBossBall(void) {
   bossBallUpdateShader();
 
   Vector3 groundTopLeft = {-50, 0, -50};
@@ -1744,9 +1769,13 @@ void renderBossBall(void) {
     return;
   }
 
-  BeginMode3D(bossBallCamera); {
-    DrawModelEx(bossBallModel, c.point, bossBall.rotationAxis, bossBall.angle, Vector3Scale(Vector3One(), 1), WHITE);
-  } EndMode3D();
+  BeginTextureMode(bossBallTarget); {
+    ClearBackground(BLANK);
+
+    BeginMode3D(bossBallCamera); {
+      DrawModelEx(bossBallModel, c.point, bossBall.rotationAxis, bossBall.angle, Vector3Scale(Vector3One(), 1), WHITE);
+    } EndMode3D();
+  } EndTextureMode();
 }
 
 void renderBossMarine(void) {
@@ -1801,6 +1830,10 @@ static float blackBackgroundAlpha = 0;
 
 void renderPhase1(void) {
   renderPlayerTexture();
+
+  if (currentBoss == BOSS_BALL) {
+    prerenderBossBall();
+  }
 
   BeginTextureMode(target); {
     ClearBackground(BLACK);
@@ -1928,29 +1961,63 @@ void renderBossHealthBar(void) {
                    WHITE);
   } break;
   case BOSS_BALL: {
-    bossBallUpdateShader();
 
     Vector3 groundTopLeft = {-50, 0, -50};
     Vector3 groundBottomLeft = {-50, 0, 50};
     Vector3 groundBottomRight = {50, 0, 50};
     Vector3 groundTopRight = {50, 0, -50};
 
+    Vector3 lightPos = bossBallLight.position;
+
+    Ray lightRay = GetMouseRay(screenMouseLocation, bossBallCamera);
+    RayCollision lc = GetRayCollisionQuad(lightRay, groundTopLeft, groundBottomLeft, groundBottomRight, groundTopRight);
+
+    if (lc.hit && lc.distance < FLOAT_MAX) {
+      bossBallLight.position = (Vector3) {
+        lc.point.x, lightPos.y, lc.point.z
+      };
+    }
+
+    bossBallUpdateShader();
+
     Ray r = GetMouseRay(head, bossBallCamera);
     RayCollision c = GetRayCollisionQuad(r, groundTopLeft, groundBottomLeft, groundBottomRight, groundTopRight);
 
-    BeginMode3D(bossBallCamera); {
-      if (c.hit && c.distance < FLOAT_MAX) {
-        DrawModelEx(bossBallModel,
-                    c.point,
-                    (Vector3) {0, 0, -1}, 360 * health * 8,
-                    Vector3Scale(Vector3One(), .5),
-                    WHITE);
-      }
-    } EndMode3D();
+    BeginTextureMode(bossBallTargetScreen); {
+      ClearBackground(BLANK);
+
+      BeginMode3D(bossBallCamera); {
+        if (c.hit && c.distance < FLOAT_MAX) {
+          DrawModelEx(bossBallModel,
+                      c.point,
+                      (Vector3) {0, 0, -1}, 360 * health * 8,
+                      Vector3Scale(Vector3One(), .5),
+                      WHITE);
+        }
+      } EndMode3D();
+    } EndTextureMode();
+
+    bossBallLight.position = lightPos;
+    bossBallUpdateShader();
+
+    const float pixelSize = 1.0;
+
+    SetShaderValue(pixelationShader,
+                   pixelationShaderPixelSize,
+                   &pixelSize,
+                   SHADER_UNIFORM_FLOAT);
+
+    BeginShaderMode(pixelationShader); {
+      DrawTextureRec(bossBallTargetScreen.texture,
+                     (Rectangle) {
+                       0, 0,
+                       bossBallTargetScreen.texture.width, -bossBallTargetScreen.texture.height
+                     },
+                     Vector2Zero(),
+                     WHITE);
+    } EndShaderMode();
   } break;
-  }
-
-
+  };
 }
 
 static Vector2 bossInfoHeadPosition = {0};
@@ -2019,15 +2086,36 @@ void renderBossInfo(void) {
     Ray r = GetMouseRay(bossInfoHeadPosition, bossBallCamera);
     RayCollision c = GetRayCollisionQuad(r, groundTopLeft, groundBottomLeft, groundBottomRight, groundTopRight);
 
-    BeginMode3D(bossBallCamera); {
-      if (c.hit && c.distance < FLOAT_MAX) {
-        DrawModelEx(bossBallModel,
-                    c.point,
-                    (Vector3) {0, 1, 0}, time * 15,
-                    Vector3Scale(Vector3One(), 5),
-                    WHITE);
-      }
-    } EndMode3D();
+    BeginTextureMode(bossBallTargetScreen); {
+      ClearBackground(BLANK);
+
+      BeginMode3D(bossBallCamera); {
+        if (c.hit && c.distance < FLOAT_MAX) {
+          DrawModelEx(bossBallModel,
+                      c.point,
+                      (Vector3) {0, 1, 0}, time * 15,
+                      Vector3Scale(Vector3One(), 5),
+                      WHITE);
+        }
+      } EndMode3D();
+    } EndTextureMode();
+
+    const float pixelSize = 10.0;
+
+    SetShaderValue(pixelationShader,
+                   pixelationShaderPixelSize,
+                   &pixelSize,
+                   SHADER_UNIFORM_FLOAT);
+
+    BeginShaderMode(pixelationShader); {
+      DrawTextureRec(bossBallTargetScreen.texture,
+                     (Rectangle) {
+                       0, 0,
+                       bossBallTargetScreen.texture.width, -bossBallTargetScreen.texture.height
+                     },
+                     Vector2Zero(),
+                     WHITE);
+    } EndShaderMode();
   } break;
   };
 
@@ -2764,12 +2852,31 @@ void initShaders(void) {
 
     dashTrailShaderAlpha = GetShaderLocation(dashTrailShader, "alpha");
   }
+
+  {
+    pixelationShader = LoadShader(NULL, TextFormat("resources/pixelation-%d.frag", GLSL_VERSION));
+    SetShaderValue(pixelationShader,
+                   GetShaderLocation(pixelationShader, "resolution"),
+                   &level,
+                   SHADER_UNIFORM_VEC2);
+
+    pixelationShaderPixelSize = GetShaderLocation(pixelationShader, "pixelSize");
+  }
+}
+
+void adjustBossBallTargetScreen(void) {
+  UnloadRenderTexture(bossBallTargetScreen);
+
+  bossBallTargetScreen = LoadRenderTexture(GetScreenWidth(), GetScreenHeight());
 }
 
 void initTextures(void) {
   sprites = LoadTexture("resources/sprites.png");
 
   target = LoadRenderTexture(LEVEL_WIDTH, LEVEL_HEIGHT);
+
+  bossBallTarget = LoadRenderTexture(LEVEL_WIDTH, LEVEL_HEIGHT);
+  adjustBossBallTargetScreen();
 
   playerTexture = LoadRenderTexture(playerRect.width, playerRect.height);
   playerTexture1 = LoadRenderTexture(playerRect.width, playerRect.height);
@@ -3642,6 +3749,10 @@ void updateAndRenderStats(void) {
 }
 
 void UpdateDrawFrame(void) {
+  if (IsWindowResized()) {
+    adjustBossBallTargetScreen();
+  }
+
   switch (gameState) {
   case GAME_MAIN_MENU:
     updateAndRenderMainMenu();
