@@ -9,8 +9,8 @@ uniform vec2 resolution;
 
 uniform float pixelSize;
 
-in vec2 fragTexCoord;
-in vec4 fragColor;
+varying vec2 fragTexCoord;
+varying vec4 fragColor;
 
 void main() {
   vec2 d = pixelSize * (1. / resolution);
