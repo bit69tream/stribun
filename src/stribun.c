@@ -14,12 +14,13 @@
 #include "raylib.h"
 #include "raymath.h"
 #include "rlgl.h"
-#include <math.h>
 
 #if defined(PLATFORM_WEB)
 #define CUSTOM_MODAL_DIALOGS
 #include <emscripten/emscripten.h>
 #endif
+
+#define FLOAT_MAX 340282346638528859811704183484516925440.0f
 
 #if defined(PLATFORM_DESKTOP)
     #define GLSL_VERSION            330
@@ -27,8 +28,12 @@
     #define GLSL_VERSION            100
 #endif
 
+#define RLIGHTS_IMPLEMENTATION
+#include "rlights.h"
+
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include <string.h>
 
 #define SUPPORT_LOG_INFO
@@ -84,7 +89,7 @@ typedef enum {
 
 #define MAX_PLAYER_HEALTH 8
 
-#define PLAYER_HITBOX_RADIUS 16
+#define PLAYER_HITBOX_RADIUS 24
 
 #define PLAYER_DASH_COOLDOWN 0.55f
 
@@ -179,6 +184,48 @@ typedef struct {
 } BossMarine;
 
 BossMarine bossMarine = {0};
+
+#define BOSS_BALL_NAME "Rigor Mortis"
+#define BOSS_BALL_MAX_HEALTH 2048
+
+typedef enum {
+  BOSS_BALL_SPAWN_DRONES,
+  BOSS_BALL_LASER_PRISON,
+  BOSS_BALL_FOLLOWING_LASER,
+  BOSS_BALL_SHOOTING,
+  BOSS_BALL_SINUS_SHOOTING,
+  BOSS_BALL_HOMING_BULLETS,
+  BOSS_BALL_ATTACK_COUNT,
+  BOSS_BALL_NO_ATTACK,
+} BossBallAttack;
+
+#define BOSS_BALL_WEAPON_COUNT 6
+
+static Shader bossBallLightingShader = {0};
+static Model bossBallModel = {0};
+static Texture2D bossBallTexture = {0};
+static Light bossBallLight = {0};
+static Camera bossBallCamera = {0};
+static Music bossBallMusic = {0};
+
+#define BOSS_BALL_HITBOX_RADIUS 90
+
+typedef struct {
+  Vector2 position;
+  int health;
+
+  float attackTimer;
+
+  BossBallAttack currentAttack;
+  Vector2 delta;
+  Vector2 targetPosition;
+  bool isGoingSomewhere;
+
+  Vector3 rotationAxis;
+  float angle;
+} BossBall;
+
+static BossBall bossBall = {0};
 
 typedef enum {
   BOSS_MARINE,
@@ -392,6 +439,15 @@ typedef struct {
 static Projectile projectiles[PROJECTILES_MAX] = {0};
 
 #define MOUSE_SENSITIVITY 0.7f
+
+void bossBallUpdateShader(void) {
+  SetShaderValue(bossBallLightingShader,
+                 bossBallLightingShader.locs[SHADER_LOC_VECTOR_VIEW],
+                 &bossBallCamera.position,
+                 SHADER_UNIFORM_VEC3);
+
+  UpdateLightValues(bossBallLightingShader, bossBallLight);
+}
 
 float mod(float v, float max) {
   if (v > max) {
@@ -1422,9 +1478,7 @@ void renderPlayer(void) {
 
   if (player.iframeTimer > 0.0f) {
     float a = sinf(time * 40) * .5 + 1.;
-    alpha = Remap(a,
-                  0, 1,
-                  0.7, 1.0);
+    alpha = Remap(a, 0, 1, 0.7, 1.0);
   }
 
   DrawTexturePro(playerTexture.texture,
@@ -1645,7 +1699,53 @@ void renderBackgroundAsteroid(void) {
                  GRAY);
 }
 
-void renderBoss(void) {
+/* code stolen from the `GetMouseRay` function, because it assumes window size */
+Ray traceRay(Vector2 pos, Camera camera) {
+  Ray ray = { 0 };
+
+  float x = (2.0f*pos.x)/(float)LEVEL_WIDTH - 1.0f;
+  float y = 1.0f - (2.0f*pos.y)/(float)LEVEL_HEIGHT;
+  float z = 1.0f;
+
+  Vector3 deviceCoords = { x, y, z };
+
+  Matrix matView = MatrixLookAt(camera.position, camera.target, camera.up);
+  Matrix matProj = MatrixIdentity();
+
+  matProj = MatrixPerspective(camera.fovy*DEG2RAD, ((double)LEVEL_WIDTH/(double)LEVEL_HEIGHT), RL_CULL_DISTANCE_NEAR, RL_CULL_DISTANCE_FAR);
+
+  Vector3 nearPoint = Vector3Unproject((Vector3){ deviceCoords.x, deviceCoords.y, 0.0f }, matProj, matView);
+  Vector3 farPoint = Vector3Unproject((Vector3){ deviceCoords.x, deviceCoords.y, 1.0f }, matProj, matView);
+
+  Vector3 direction = Vector3Normalize(Vector3Subtract(farPoint, nearPoint));
+
+  ray.position = camera.position;
+  ray.direction = direction;
+
+  return ray;
+}
+
+void renderBossBall(void) {
+  bossBallUpdateShader();
+
+  Vector3 groundTopLeft = {-50, 0, -50};
+  Vector3 groundBottomLeft = {-50, 0, 50};
+  Vector3 groundBottomRight = {50, 0, 50};
+  Vector3 groundTopRight = {50, 0, -50};
+
+  Ray r = traceRay(bossBall.position, bossBallCamera);
+  RayCollision c = GetRayCollisionQuad(r, groundTopLeft, groundBottomLeft, groundBottomRight, groundTopRight);
+
+  if (!c.hit || c.distance >= FLOAT_MAX) {
+    return;
+  }
+
+  BeginMode3D(bossBallCamera); {
+    DrawModelEx(bossBallModel, c.point, bossBall.rotationAxis, bossBall.angle, Vector3Scale(Vector3One(), 1), WHITE);
+  } EndMode3D();
+}
+
+void renderBossMarine(void) {
   Vector2 center = {
     .x = (bossMarineRect.width * SPRITES_SCALE) / 2,
     .y = (bossMarineRect.height * SPRITES_SCALE) / 2,
@@ -1684,6 +1784,13 @@ void renderBoss(void) {
                  weaponCenter,
                  bossMarine.weaponAngle,
                  WHITE);
+}
+
+void renderBoss(void) {
+  switch (currentBoss) {
+  case BOSS_MARINE: renderBossMarine(); break;
+  case BOSS_BALL: renderBossBall(); break;
+  }
 }
 
 static float blackBackgroundAlpha = 0;
@@ -1753,7 +1860,20 @@ void renderBossHealthBar(void) {
   DrawRectanglePro(wRect, (Vector2) {wRect.width / 2, wRect.height / 2}, 0, BLACK);
   DrawRectanglePro(hRect, (Vector2) {hRect.width / 2, hRect.height / 2}, 0, BLACK);
 
-  float health = (float)bossMarine.health / BOSS_MARINE_MAX_HEALTH;
+  float health = 0;
+
+  char *bossName = NULL;
+
+  switch (currentBoss) {
+  case BOSS_MARINE: {
+    health = (float)bossMarine.health / BOSS_MARINE_MAX_HEALTH;
+    bossName = BOSS_MARINE_NAME;
+  } break;
+  case BOSS_BALL: {
+    health = (float)bossBall.health / BOSS_BALL_MAX_HEALTH;
+    bossName = BOSS_BALL_NAME;
+  } break;
+  };
 
   rect.x -= rect.width / 2;
 
@@ -1764,7 +1884,6 @@ void renderBossHealthBar(void) {
 
   rect.y -= rect.height / 2;
 
-
   rect.width *= health;
 
   DrawRectanglePro(rect, Vector2Zero(), 0, RED);
@@ -1772,7 +1891,6 @@ void renderBossHealthBar(void) {
   float mul = SPRITES_SCALE * camera.zoom * 0.6;
 
   Font f = GetFontDefault();
-  char *bossName = BOSS_MARINE_NAME;
   float fontSize = 11 * mul;
   float spacing = 1 * mul;
   Vector2 size = MeasureTextEx(f, bossName, fontSize, spacing);
@@ -1785,20 +1903,47 @@ void renderBossHealthBar(void) {
   DrawTextPro(f, bossName, pos, Vector2Scale(size, 0.5f), 0, fontSize, spacing, BLACK);
   DrawTextPro(f, bossName, Vector2SubtractValue(pos, spacing), Vector2Scale(size, 0.5f), 0, fontSize, spacing, WHITE);
 
-  DrawTexturePro(sprites,
-                 bossMarineHeadRect,
-                 (Rectangle) {
-                   .x = head.x,
-                   .y = head.y,
-                   .width = bossMarineHeadRect.width * mul,
-                   .height = bossMarineHeadRect.height * mul,
-                 },
-                 (Vector2) {
-                   .x = (bossMarineHeadRect.width * mul) / 2,
-                   .y = (bossMarineHeadRect.height * mul) / 2,
-                 },
-                 sin(time * 2) * 15,
-                 WHITE);
+  switch (currentBoss) {
+  case BOSS_MARINE: {
+    DrawTexturePro(sprites,
+                   bossMarineHeadRect,
+                   (Rectangle) {
+                     .x = head.x,
+                     .y = head.y,
+                     .width = bossMarineHeadRect.width * mul,
+                     .height = bossMarineHeadRect.height * mul,
+                   },
+                   (Vector2) {
+                     .x = (bossMarineHeadRect.width * mul) / 2,
+                     .y = (bossMarineHeadRect.height * mul) / 2,
+                   },
+                   sin(time * 2) * 15,
+                   WHITE);
+  } break;
+  case BOSS_BALL: {
+    bossBallUpdateShader();
+
+    Vector3 groundTopLeft = {-50, 0, -50};
+    Vector3 groundBottomLeft = {-50, 0, 50};
+    Vector3 groundBottomRight = {50, 0, 50};
+    Vector3 groundTopRight = {50, 0, -50};
+
+    Ray r = GetMouseRay(head, bossBallCamera);
+    RayCollision c = GetRayCollisionQuad(r, groundTopLeft, groundBottomLeft, groundBottomRight, groundTopRight);
+
+    BeginMode3D(bossBallCamera); {
+      if (c.hit && c.distance < FLOAT_MAX) {
+        DrawModelEx(bossBallModel,
+                    c.point,
+                    (Vector3) {0, 0, -1}, 360 * health * 8,
+                    Vector3Scale(Vector3One(), .5),
+                    WHITE);
+      }
+    } EndMode3D();
+  } break;
+  }
+
+
 }
 
 static Vector2 bossInfoHeadPosition = {0};
@@ -1808,7 +1953,12 @@ void renderBossInfo(void) {
   float w = GetScreenWidth();
   float h = GetScreenHeight();
 
-  Color red = (Color) {143, 30, 32, 255};
+  Color red = {0};
+
+  switch (currentBoss) {
+  case BOSS_MARINE: red = (Color) {143, 30, 32, 255}; break;
+  case BOSS_BALL: red = (Color) {243, 83, 54, 255}; break;
+  }
 
   float w3 = roundf(w / 3);
 
@@ -1826,23 +1976,55 @@ void renderBossInfo(void) {
 
   float mul = 25;
 
-  DrawTexturePro(sprites,
-                 bossMarineHeadRect,
-                 (Rectangle) {
-                   .x = bossInfoHeadPosition.x,
-                   .y = bossInfoHeadPosition.y,
-                   .width = bossMarineHeadRect.width * mul,
-                   .height = bossMarineHeadRect.height * mul,
-                 },
-                 (Vector2) {
-                   .x = (bossMarineHeadRect.width * mul) / 2,
-                   .y = (bossMarineHeadRect.height * mul) / 2,
-                 },
-                 sin(time) * 15,
-                 WHITE);
+  char *bossName = NULL;
+
+  switch (currentBoss) {
+  case BOSS_MARINE: {
+    bossName = BOSS_MARINE_NAME;
+
+    Rectangle headRect = bossMarineHeadRect;
+
+    DrawTexturePro(sprites,
+                   headRect,
+                   (Rectangle) {
+                     .x = bossInfoHeadPosition.x,
+                     .y = bossInfoHeadPosition.y,
+                     .width = headRect.width * mul,
+                     .height = headRect.height * mul,
+                   },
+                   (Vector2) {
+                     .x = (headRect.width * mul) / 2,
+                     .y = (headRect.height * mul) / 2,
+                   },
+                   sin(time) * 15,
+                   WHITE);
+  } break;
+  case BOSS_BALL: {
+    bossName = BOSS_BALL_NAME;
+
+    bossBallUpdateShader();
+
+    Vector3 groundTopLeft = {-50, 0, -50};
+    Vector3 groundBottomLeft = {-50, 0, 50};
+    Vector3 groundBottomRight = {50, 0, 50};
+    Vector3 groundTopRight = {50, 0, -50};
+
+    Ray r = GetMouseRay(bossInfoHeadPosition, bossBallCamera);
+    RayCollision c = GetRayCollisionQuad(r, groundTopLeft, groundBottomLeft, groundBottomRight, groundTopRight);
+
+    BeginMode3D(bossBallCamera); {
+      if (c.hit && c.distance < FLOAT_MAX) {
+        DrawModelEx(bossBallModel,
+                    c.point,
+                    (Vector3) {0, 1, 0}, time * 15,
+                    Vector3Scale(Vector3One(), 5),
+                    WHITE);
+      }
+    } EndMode3D();
+  } break;
+  };
 
   Font f = GetFontDefault();
-  char *bossName = BOSS_MARINE_NAME;
   float fontSize = 11 * mul / 4;
   float spacing = 1 * mul / 4;
   Vector2 size = MeasureTextEx(f, bossName, fontSize, spacing);
@@ -1852,19 +2034,25 @@ void renderBossInfo(void) {
       .y = h / 2,
   };
 
-  DrawTextPro(f, bossName, Vector2AddValue(pos, spacing),
-              Vector2Scale(size, 0.5f),
-              0,
-              fontSize,
-              spacing,
-              red);
+  DrawTextPro
+    (f,
+     bossName,
+     Vector2AddValue(pos, spacing),
+     Vector2Scale(size, 0.5f),
+     0,
+     fontSize,
+     spacing,
+     red);
 
-  DrawTextPro(f, bossName, pos,
-              Vector2Scale(size, 0.5f),
-              0,
-              fontSize,
-              spacing,
-              WHITE);
+  DrawTextPro
+    (f,
+     bossName,
+     pos,
+     Vector2Scale(size, 0.5f),
+     0,
+     fontSize,
+     spacing,
+     WHITE);
 }
 
 void renderFinal(void) {
@@ -1964,16 +2152,27 @@ void checkRegularProjectileCollision(int i) {
     return;
   }
 
-  for (int j = 0; j < BOSS_MARINE_BOUNDING_CIRCLES; j++) {
-    Vector2 pos = Vector2Add(bossMarine.position,
-                             bossMarine.processedBoundingCircles[j].position);
-    float r = bossMarine.processedBoundingCircles[j].radius;
+  switch (currentBoss) {
+  case BOSS_MARINE: {
+    for (int j = 0; j < BOSS_MARINE_BOUNDING_CIRCLES; j++) {
+      Vector2 pos = Vector2Add(bossMarine.position,
+                               bossMarine.processedBoundingCircles[j].position);
+      float r = bossMarine.processedBoundingCircles[j].radius;
 
-    if (CheckCollisionCircles(proj, radius, pos, r)) {
+      if (CheckCollisionCircles(proj, radius, pos, r)) {
+        projectiles[i].willBeDestroyed = true;
+        bossMarine.health -= projectiles[i].damage;
+        return;
+      }
+    }
+  } break;
+  case BOSS_BALL: {
+    if (CheckCollisionCircles(proj, radius, bossBall.position, BOSS_BALL_HITBOX_RADIUS)) {
       projectiles[i].willBeDestroyed = true;
-      bossMarine.health -= projectiles[i].damage;
+      bossBall.health -= projectiles[i].damage;
       return;
     }
+  } break;
   }
 }
 
@@ -2023,17 +2222,27 @@ void checkSquaredProjectileCollision(int i) {
     return;
   }
 
-  for (int j = 0; j < BOSS_MARINE_BOUNDING_CIRCLES; j++) {
-    Vector2 pos = Vector2Add(bossMarine.position,
-                             bossMarine.processedBoundingCircles[j].position);
-    float r = bossMarine.processedBoundingCircles[j].radius;
+  switch (currentBoss) {
+  case BOSS_MARINE: {
+    for (int j = 0; j < BOSS_MARINE_BOUNDING_CIRCLES; j++) {
+      Vector2 pos = Vector2Add(bossMarine.position,
+                               bossMarine.processedBoundingCircles[j].position);
+      float r = bossMarine.processedBoundingCircles[j].radius;
 
-    if (doesRectangleCollideWithACircle(proj, angle,
-                                        pos, r)) {
+      if (doesRectangleCollideWithACircle(proj, angle, pos, r)) {
+        projectiles[i].willBeDestroyed = true;
+        bossMarine.health -= projectiles[i].damage;
+        return;
+      }
+    }
+  } break;
+  case BOSS_BALL: {
+    if (doesRectangleCollideWithACircle(proj, angle, bossBall.position, BOSS_BALL_HITBOX_RADIUS)) {
       projectiles[i].willBeDestroyed = true;
-      bossMarine.health -= projectiles[i].damage;
+      bossBall.health -= projectiles[i].damage;
       return;
     }
+  } break;
   }
 }
 
@@ -2225,9 +2434,104 @@ void initBackgroundAsteroid(void) {
   bigAssAsteroidAngleDelta = (float)GetRandomValue(-1, 1) * 0.005f;
 }
 
-void initBossMarine(void) {
-  currentBoss = BOSS_MARINE;
+void initBossBallResources(void) {
+  memset(&bossBallCamera, 0, sizeof(bossBallCamera));
+  bossBallCamera.position = (Vector3) {0, 20, 0};
+  bossBallCamera.target = (Vector3) {0, 0, 0};
+  bossBallCamera.up = (Vector3) {0, 0, -1};
+  bossBallCamera.fovy = 45.0f;
+  bossBallCamera.projection = CAMERA_PERSPECTIVE;
 
+  bossBallLightingShader = LoadShader(TextFormat("resources/lighting-%d.vert", GLSL_VERSION),
+                                      TextFormat("resources/lighting-%d.frag", GLSL_VERSION));
+  bossBallLightingShader.locs[SHADER_LOC_VECTOR_VIEW] =
+    GetShaderLocation(bossBallLightingShader, "viewPos");
+
+  SetShaderValue(bossBallLightingShader,
+                 GetShaderLocation(bossBallLightingShader, "ambient"),
+                 (float[4]){ 0.3f, 0.3f, 0.3f, 1.0f },
+                 SHADER_UNIFORM_VEC4);
+
+  bossBallLight =
+    CreateLight(LIGHT_POINT,
+                (Vector3) {0, 10, 0},
+                Vector3Zero(),
+                WHITE,
+                bossBallLightingShader);
+
+  bossBallTexture = LoadTexture("resources/ball.png");
+
+  bossBallModel = LoadModel("resources/ball.obj");
+
+  SetMaterialTexture(&bossBallModel.materials[0], MATERIAL_MAP_ALBEDO, bossBallTexture);
+  bossBallModel.materials[0].shader = bossBallLightingShader;
+}
+
+void bossBallCheckCollisions(bool sendAsteroidsFlying) {
+  for (int ai = 0; ai < asteroidsLen; ai++) {
+    for (int abi = 0; abi < asteroids[ai].sprite->boundingCirclesLen; abi++) {
+      Vector2 pos =
+        Vector2Add(asteroids[ai].processedBoundingCircles[abi].position, asteroids[ai].position);
+
+      float distance = Vector2Distance(pos, bossBall.position);
+      float radiusSum =
+        (asteroids[ai].processedBoundingCircles[abi].radius + BOSS_BALL_HITBOX_RADIUS);
+
+      if (distance < radiusSum) {
+
+        if (asteroids[ai].launchedByPlayer) {
+#define ASTEROID_BASE_DAMAGE 4
+          float damageMultiplier = Vector2Length(asteroids[ai].delta);
+          bossBall.health = (int)Clamp(bossBall.health - (damageMultiplier * ASTEROID_BASE_DAMAGE),
+                                       0.0f,
+                                       BOSS_BALL_MAX_HEALTH);
+          asteroids[ai].launchedByPlayer = false;
+        }
+
+        float angle = angleBetweenPoints(bossBall.position, asteroids[ai].position) * DEG2RAD;
+
+        float offsetDistance = distance - radiusSum;
+        Vector2 asteroidOffset = Vector2Rotate((Vector2) {0, offsetDistance}, angle);
+
+        asteroids[ai].position = Vector2Add(asteroids[ai].position, asteroidOffset);
+        if (sendAsteroidsFlying) {
+          asteroids[ai].delta = Vector2Add(asteroids[ai].delta, Vector2Scale(asteroidOffset, 0.5));
+        }
+      }
+    }
+  }
+
+  float distance = Vector2Distance(player.position, bossBall.position);
+  float radiusSum =
+    (PLAYER_HITBOX_RADIUS + BOSS_BALL_HITBOX_RADIUS);
+
+  if (distance < radiusSum) {
+    float angle = angleBetweenPoints(bossBall.position, player.position) * DEG2RAD;
+
+    float offsetDistance = distance - radiusSum;
+    Vector2 asteroidOffset = Vector2Rotate((Vector2) {0, offsetDistance}, angle);
+
+    player.position = Vector2Add(player.position, asteroidOffset);
+  }
+}
+
+void initBossBall(void) {
+  memset(&bossBall, 0, sizeof(bossBall));
+
+  bossBall = (BossBall) {
+    .position = {
+      .x = (float)LEVEL_WIDTH / 2,
+      .y = (float)LEVEL_HEIGHT / 2,
+    },
+    .health = BOSS_BALL_MAX_HEALTH,
+    .currentAttack = BOSS_BALL_NO_ATTACK,
+    .isGoingSomewhere = false,
+  };
+
+  bossBallCheckCollisions(false);
+}
+
+void initBossMarine(void) {
   memset(&bossMarine, 0, sizeof(bossMarine));
   memset(bossMarineAttacks, 0, sizeof(bossMarineAttacks));
 
@@ -2484,14 +2788,19 @@ void resetGame(void) {
   initAsteroids();
   initPlayer();
   initBossMarine();
+  initBossBall();
   initBackgroundAsteroid();
   initProjectiles();
+
+  currentBoss = BOSS_MARINE;
 
   for (int i = 0; i < THRUSTER_TRAILS_MAX; i++) {
     thrusterTrail[i].alpha = 0.0f;
     thrusterTrail[i].origin = Vector2Zero();
     thrusterTrail[i].angle = 0.0f;
   }
+
+  introductionStage = BOSS_INTRODUCTION_BEGINNING;
 }
 
 static bool pauseMouseWasDown = false;
@@ -2669,6 +2978,24 @@ void updateAndRenderPauseScreen(void) {
   previousMouseLocation = screenMouseLocation;
 }
 
+void updateBossBall(void) {
+  if (bossBall.health <= 0) {
+    PauseMusicStream(bossBallMusic);
+    playerStats.kills += 1;
+    gameState = GAME_BOSS_DEAD;
+
+    for (int i = 0; i < PROJECTILES_MAX; i++) {
+      if (projectiles[i].type != PROJECTILE_NONE) {
+        projectiles[i].willBeDestroyed = true;
+        projectiles[i].destructionTimer = 0.02f;
+      }
+    }
+    return;
+  }
+
+  bossBallCheckCollisions(true);
+}
+
 void updateAndRenderBossFight(void) {
   if (IsKeyPressed(KEY_ESCAPE)) {
     PlaySound(beep);
@@ -2677,19 +3004,33 @@ void updateAndRenderBossFight(void) {
 
   if (isGamePaused) {
     PauseMusicStream(bossMarineMusic);
+    PauseMusicStream(bossBallMusic);
     updateAndRenderPauseScreen();
     return;
   }
 
-  ResumeMusicStream(bossMarineMusic);
-
   updateCamera();
 
-  if (!IsMusicStreamPlaying(bossMarineMusic)) {
-    PlayMusicStream(bossMarineMusic);
-  }
+  switch (currentBoss) {
+  case BOSS_MARINE: {
+    ResumeMusicStream(bossMarineMusic);
 
-  UpdateMusicStream(bossMarineMusic);
+    if (!IsMusicStreamPlaying(bossMarineMusic)) {
+      PlayMusicStream(bossMarineMusic);
+    }
+
+    UpdateMusicStream(bossMarineMusic);
+  } break;
+  case BOSS_BALL: {
+    ResumeMusicStream(bossBallMusic);
+
+    if (!IsMusicStreamPlaying(bossBallMusic)) {
+      PlayMusicStream(bossBallMusic);
+    }
+
+    UpdateMusicStream(bossBallMusic);
+  } break;
+  }
 
   updateProjectiles();
   updateThrusterTrails();
@@ -2701,7 +3042,10 @@ void updateAndRenderBossFight(void) {
   updatePlayerPosition();
   updatePlayerCooldowns();
 
-  updateBossMarine();
+  switch (currentBoss) {
+  case BOSS_MARINE: updateBossMarine(); break;
+  case BOSS_BALL: updateBossBall(); break;
+  }
 
   tryDashing();
   tryFiringAShot();
@@ -2989,7 +3333,14 @@ static Vector2 arenaLerpLocation = {0};
 static float bossInfoTimer = 0;
 
 void updateAndRenderIntroduction(void) {
-  UpdateMusicStream(bossMarineMusic);
+  switch (currentBoss) {
+  case BOSS_MARINE: {
+    UpdateMusicStream(bossMarineMusic);
+  } break;
+  case BOSS_BALL: {
+    UpdateMusicStream(bossBallMusic);
+  } break;
+  }
 
   switch (introductionStage) {
   case BOSS_INTRODUCTION_BEGINNING: {
@@ -3013,17 +3364,27 @@ void updateAndRenderIntroduction(void) {
       arenaLerp = 0;
 
       PlaySound(borderActivation);
-          PlayMusicStream(bossMarineMusic);
+      switch (currentBoss) {
+      case BOSS_MARINE: PlayMusicStream(bossMarineMusic); break;
+      case BOSS_BALL: PlayMusicStream(bossBallMusic); break;
+      }
     }
   } break;
   case BOSS_INTRODUCTION_FOCUS: {
+    Vector2 bossPos = Vector2Zero();
+
+    switch (currentBoss) {
+    case BOSS_MARINE: bossPos = bossMarine.position; break;
+    case BOSS_BALL: bossPos = bossBall.position; break;
+    }
+
     cameraIntroductionTarget = Vector2Lerp(cameraIntroductionTarget,
-                                           bossMarine.position,
+                                           bossPos,
                                            0.1f);
 
     arenaLerp = Clamp(arenaLerp + GetFrameTime(), 0.0f, 1.0f);
 
-    if (Vector2Distance(cameraIntroductionTarget, bossMarine.position) < 10.0f &&
+    if (Vector2Distance(cameraIntroductionTarget, bossPos) < 10.0f &&
         arenaLerp == 1.0f) {
       introductionStage = BOSS_INTRODUCTION_INFO;
       bossInfoTimer = 2.0f;
@@ -3034,7 +3395,10 @@ void updateAndRenderIntroduction(void) {
       };
       infoXBase = -roundf(GetScreenWidth() / 3);
 
-      PlaySound(bossMarineShotgunSound);
+      switch (currentBoss) {
+      case BOSS_MARINE: PlaySound(bossMarineShotgunSound); break;
+      case BOSS_BALL: PlaySound(bossMarineShotgunSound); break;
+      }
     }
   } break;
   case BOSS_INTRODUCTION_INFO: {
@@ -3053,8 +3417,17 @@ void updateAndRenderIntroduction(void) {
     if (bossInfoTimer <= 0.0f) {
       gameState = GAME_BOSS;
       isGamePaused = false;
-      bossMarine.attackTimer = 0.5f;
-      bossMarine.currentAttack = BOSS_MARINE_NOT_SHOOTING;
+
+      switch (currentBoss) {
+      case BOSS_MARINE: {
+        bossMarine.attackTimer = 0.5f;
+        bossMarine.currentAttack = BOSS_MARINE_NOT_SHOOTING;
+      } break;
+      case BOSS_BALL: {
+        bossBall.attackTimer = 0.5f;
+        bossBall.currentAttack = BOSS_BALL_NO_ATTACK;
+      } break;
+      }
     }
   } break;
   }
@@ -3200,8 +3573,23 @@ void updateAndRenderStats(void) {
       IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
     PlaySound(beep);
 
-    gameState = GAME_MAIN_MENU;
-    resetGame();
+    if (player.health == 0) {
+      gameState = GAME_MAIN_MENU;
+      resetGame();
+      return;
+    }
+
+    switch (currentBoss) {
+    case BOSS_MARINE: {
+      gameState = GAME_BOSS_INTRODUCTION;
+      currentBoss = BOSS_BALL;
+      introductionStage = BOSS_INTRODUCTION_BEGINNING;
+    } break;
+    case BOSS_BALL: {
+      gameState = GAME_MAIN_MENU;
+      resetGame();
+    } break;
+    }
 
     return;
   }
@@ -3278,6 +3666,98 @@ float randomFloat(void) {
   return (float)rand() / (float)RAND_MAX;
 }
 
+int main2(void) {
+  InitWindow(800, 800, "3de");
+  SetWindowState(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_MAXIMIZED | FLAG_BORDERLESS_WINDOWED_MODE);
+  SetTargetFPS(60);
+
+  Camera camera = {0};
+  camera.position = (Vector3) {0, 5, 0};
+  camera.target = (Vector3) {0, 0, 0};
+  camera.up = (Vector3) {0, 0, -1};
+  camera.fovy = 45.0f;
+  camera.projection = CAMERA_PERSPECTIVE;
+
+  float i = 0.0f;
+
+  Shader l = LoadShader(TextFormat("resources/lighting-%d.vert", GLSL_VERSION),
+                        TextFormat("resources/lighting-%d.frag", GLSL_VERSION));
+  l.locs[SHADER_LOC_VECTOR_VIEW] = GetShaderLocation(l, "viewPos");
+
+  SetShaderValue(l,
+                 GetShaderLocation(l, "ambient"),
+                 (float[4]){ 0.1f, 0.1f, 0.1f, 1.0f },
+                 SHADER_UNIFORM_VEC4);
+
+  Light light = CreateLight(LIGHT_POINT,
+                            (Vector3) {0, 3, 0},
+                            Vector3Zero(),
+                            WHITE,
+                            l);
+  (void) light;
+
+  Texture2D t = LoadTexture("resources/ball.png");
+  Model m = LoadModel("resources/ball.obj");
+  SetMaterialTexture(&m.materials[0], MATERIAL_MAP_ALBEDO, t);
+  m.materials[0].shader = l;
+
+  float x = 0;
+  float z = 0;
+  float y = 0;
+
+  while (!WindowShouldClose()) {
+
+    float t = GetFrameTime() * 2;
+
+    if (IsKeyDown(KEY_E)) {
+      z -= t;
+    }
+
+    if (IsKeyDown(KEY_S)) {
+      x -= t;
+    }
+
+    if (IsKeyDown(KEY_D)) {
+      z += t;
+    }
+
+    if (IsKeyDown(KEY_F)) {
+      x += t;
+    }
+
+    if (IsKeyDown(KEY_X)) {
+      y += t;
+    }
+
+    if (IsKeyDown(KEY_V)) {
+      y -= t;
+    }
+
+    float cameraPos[3] = { camera.position.x, camera.position.y, camera.position.z };
+    SetShaderValue(l, l.locs[SHADER_LOC_VECTOR_VIEW], cameraPos, SHADER_UNIFORM_VEC3);
+    UpdateLightValues(l, light);
+
+    BeginDrawing(); {
+      ClearBackground(RAYWHITE);
+
+        BeginMode3D(camera); {
+          /* DrawGrid(10, 1); */
+
+          DrawModelEx(m,
+                      (Vector3){x, y, z},
+                      (Vector3){1, 0, 0}, 0,
+                      (Vector3){1,1,1},
+                      WHITE);
+
+          i += t;
+        } EndMode3D();
+
+    } EndDrawing();
+  }
+
+  return 0;
+}
+
 int main(void) {
   initRaylib();
   initMouse();
@@ -3292,8 +3772,12 @@ int main(void) {
   initBackgroundAsteroid();
   initMusic();
 
-  initBossMarine();
+  initBossBallResources();
 
+  initBossMarine();
+  initBossBall();
+
+  currentBoss = BOSS_MARINE;
   seenTutorial = false;
 
   /* fix fragTexCoord for rectangles */
