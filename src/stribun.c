@@ -1806,7 +1806,10 @@ void renderPhase1(void) {
     ClearBackground(BLACK);
 
     renderBackground(currentBoss != BOSS_BALL);
-    renderBackgroundAsteroid();
+
+    if (currentBoss == BOSS_MARINE) {
+      renderBackgroundAsteroid();
+    }
 
     if (gameState == GAME_BOSS ||
         (gameState == GAME_BOSS_INTRODUCTION &&
@@ -2469,6 +2472,9 @@ void initBossBallResources(void) {
 
   SetMaterialTexture(&bossBallModel.materials[0], MATERIAL_MAP_ALBEDO, bossBallTexture);
   bossBallModel.materials[0].shader = bossBallLightingShader;
+
+  bossBallMusic = LoadMusicStream("resources/reddream.xm");
+  SetMusicVolume(bossBallMusic, 0.5f);
 }
 
 void bossBallCheckCollisions(bool sendAsteroidsFlying) {
