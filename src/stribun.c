@@ -28,7 +28,7 @@
     #define GLSL_VERSION            100
 #endif
 
-#define GAME_VERSION "v0.1"
+#define GAME_VERSION "v0.1.1"
 
 #define RLIGHTS_IMPLEMENTATION
 #include "rlights.h"
@@ -282,6 +282,9 @@ typedef struct {
   Music soundEffect;
 
   float attackCooldown;
+
+  bool isDeactivated;
+  float deactivationDark;
 } BossBallWeapon;
 
 typedef struct {
@@ -1960,6 +1963,10 @@ void renderBossBall(void) {
 void renderBossBallWeapon(int i, float angle) {
   Rectangle r = bossBallWeaponRects[bossBall.weapons[i].type];
 
+  Color color = ColorFromHSV(0, 0, bossBall.weapons[i].deactivationDark);
+
+  printf("%.2f\n", bossBall.weapons[i].deactivationDark);
+
   DrawTexturePro(sprites,
                  r,
                  (Rectangle) {
@@ -1973,7 +1980,7 @@ void renderBossBallWeapon(int i, float angle) {
                    .y = (r.height * SPRITES_SCALE) * 0.5f,
                  },
                  angle,
-                 WHITE);
+                 color);
 
   if (bossBall.weapons[i].type == BOSS_BALL_WEAPON_LASER) {
     DrawTexturePro(sprites,
@@ -1989,7 +1996,7 @@ void renderBossBallWeapon(int i, float angle) {
                      .y = (r.height * SPRITES_SCALE) * 0.5f,
                    },
                    angle,
-                   ColorAlpha(WHITE, bossBall.weapons[i].chargeLevel));
+                   ColorAlpha(color, bossBall.weapons[i].chargeLevel));
   }
 }
 
@@ -2655,6 +2662,31 @@ void checkSquaredProjectileCollision(int i) {
       bossBall.health -= projectiles[i].damage;
       return;
     }
+
+    for (int i = 0; i < BOSS_BALL_WEAPONS; i++) {
+      if (!bossBall.weapons[i].isDisconnected) {
+        continue;
+      }
+
+      Vector2 pos = bossBall.weapons[i].position;
+      float r = bossBallWeaponHitboxRadiuses[bossBall.weapons[i].type];
+
+      if (doesRectangleCollideWithACircle(proj, angle, pos, r, origin)) {
+        projectiles[i].willBeDestroyed = true;
+
+        StopMusicStream(bossBall.weapons[i].soundEffect);
+
+        bossBall.weapons[i].attackCooldown = 4.0f;
+        bossBall.weapons[i].attackTimer = 0.0f;
+
+        bossBall.weapons[i].laserLength = 0;
+        bossBall.weapons[i].chargeLevel = 0;
+
+        bossBall.weapons[i].isDeactivated = true;
+
+        return;
+      }
+    }
   } break;
   }
 }
@@ -3032,6 +3064,7 @@ void initBossBall(void) {
       .angle = 45 * i,
       .fireCooldown = (float)GetRandomValue(1, 15) / 10.0f,
       .isDisconnected = false,
+      .deactivationDark = 1.0f,
     };
 
     if (types[index] == BOSS_BALL_WEAPON_LASER) {
@@ -3641,6 +3674,8 @@ void bossBallAttack(void) {
       continue;
     }
 
+    bossBall.weapons[i].isDeactivated = false;
+
     bossBall.weapons[i].attackTimer -= GetFrameTime();
 
     if (bossBall.weapons[i].seesPlayer &&
@@ -3849,6 +3884,13 @@ void weaponFollowPlayer(int i) {
 
 void bossBallUpdateDisconnectedWeapon(int i) {
   disconnectedWeaponsCollision(i);
+
+  if (bossBall.weapons[i].isDeactivated) {
+    bossBall.weapons[i].deactivationDark = Lerp(bossBall.weapons[i].deactivationDark, 0.5f, 0.1f);
+    return;
+  }
+
+  bossBall.weapons[i].deactivationDark = Lerp(bossBall.weapons[i].deactivationDark, 1.0f, 0.1f);
 
   if (bossBall.weapons[i].standingWalkingTimer <= 0.0f) {
     bossBall.weapons[i].isWalking = GetRandomValue(0, 1);
