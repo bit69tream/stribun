@@ -4942,11 +4942,14 @@ void updateAndRenderStats(void) {
     DrawTextPro(f, kills_stat, pos, Vector2Scale(size, 0.5f), 0, fontSize, spacing, WHITE);
 
     if (currentBoss == BOSS_MARINE && player.health > 0) {
+      float x1 = (float)GetScreenWidth() / 4.0f;
+      float x2 = (float)GetScreenWidth() - x1;
+
       float perkMul = mul * 3;
       DrawTexturePro(sprites,
                      perkRect(firstNewPerk),
                      (Rectangle) {
-                       .x = (float)GetScreenWidth() / 3.0f,
+                       .x = x1,
                        .y = (float)GetScreenHeight() / 2.0f,
                        .width = perkRect(firstNewPerk).width * perkMul,
                        .height = perkRect(firstNewPerk).height * perkMul,
@@ -4961,7 +4964,7 @@ void updateAndRenderStats(void) {
       DrawTexturePro(sprites,
                      perkRect(secondNewPerk),
                      (Rectangle) {
-                       .x = (float)GetScreenWidth() / 3.0f * 2,
+                       .x = x2,
                        .y = (float)GetScreenHeight() / 2.0f,
                        .width = perkRect(firstNewPerk).width * perkMul,
                        .height = perkRect(firstNewPerk).height * perkMul,
@@ -4972,6 +4975,18 @@ void updateAndRenderStats(void) {
                      },
                      0,
                      WHITE);
+
+      char *perk1 = perkName(firstNewPerk);
+      char *perk2 = perkName(secondNewPerk);
+
+      Vector2 pos1 = {x1, (float)GetScreenHeight() - ((float)GetScreenHeight() / 3.0f)};
+      Vector2 pos2 = {x2, (float)GetScreenHeight() - ((float)GetScreenHeight() / 3.0f)};
+
+      Vector2 size1 = MeasureTextEx(f, perk1, fontSize, spacing);
+      Vector2 size2 = MeasureTextEx(f, perk2, fontSize, spacing);
+
+      DrawTextPro(f, perk1, pos1, Vector2Scale(size1, 0.5f), 0, fontSize, spacing, WHITE);
+      DrawTextPro(f, perk2, pos2, Vector2Scale(size2, 0.5f), 0, fontSize, spacing, WHITE);
     }
 
     const char *cont = "PRESS ANY KEY TO CONTINUE";
