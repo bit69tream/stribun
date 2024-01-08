@@ -187,7 +187,7 @@ typedef struct {
 BossMarine bossMarine = {0};
 
 #define BOSS_BALL_NAME "Rigor Mortis"
-#define BOSS_BALL_MAX_HEALTH 2048
+#define BOSS_BALL_MAX_HEALTH 1024
 
 static Shader bossBallLightingShader = {0};
 static Model bossBallModel = {0};
@@ -3334,8 +3334,22 @@ void bossBallRoll(void) {
   }
 }
 
+void attackWithADisconnectedWeapon(int i) {
+  (void) i;
+}
+
+void attackWithAConnectedWeapon(int i) {
+  (void) i;
+}
+
 void bossBallAttack(void) {
-  /* TODO */
+  for (int i = 0; i < BOSS_BALL_WEAPONS; i++) {
+    if (bossBall.weapons[i].isDisconnected) {
+      attackWithADisconnectedWeapon(i);
+    } else {
+      attackWithAConnectedWeapon(i);
+    }
+  }
 }
 
 void bossBallWeaponCalculateBulletOrigin(int i, float angle) {
