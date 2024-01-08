@@ -2913,7 +2913,7 @@ void initBossBall(void) {
 
     if (types[index] == BOSS_BALL_WEAPON_LASER) {
       bossBall.weapons[i].soundEffect = LoadMusicStream("resources/laser.wav");
-      SetMusicVolume(bossBall.weapons[i].soundEffect, 2.0f);
+      SetMusicVolume(bossBall.weapons[i].soundEffect, 1.5f);
     }
 
     types[index] = BOSS_BALL_WEAPON_NONE;
@@ -3058,7 +3058,7 @@ void initSoundEffects(void) {
   playerDeathSound = LoadSound("resources/dead.wav");
 
   bossBallLaserChargingSound = LoadSound("resources/laser-charging.wav");
-  SetSoundVolume(bossBallLaserChargingSound, 0.3);
+  SetSoundVolume(bossBallLaserChargingSound, 0.5);
 }
 
 void initShaders(void) {
@@ -3218,6 +3218,7 @@ void resetGame(void) {
   initAsteroids();
   initPlayer();
   initBossMarine();
+  initBossBall();
   initBossBall();
   initBackgroundAsteroid();
   initProjectiles();
@@ -3438,8 +3439,14 @@ void bossBallRoll(void) {
       bossBall.startingPosition = bossBall.position;
     }
 
-    if (GetRandomValue(1, 4) == 1) {
+    if (GetRandomValue(1, 10) == 1) {
       bossBall.weaponAngleTargetOffset = GetRandomValue(0, 360);
+
+      for (int i = 0; i < BOSS_BALL_WEAPONS; i++) {
+        bossBall.weapons[i].attackTimer = 0;
+        bossBall.weapons[i].chargeLevel = 0;
+        bossBall.weapons[i].laserLength = 0;
+      }
     }
   } else {
     Vector2 dir = Vector2Normalize(Vector2Subtract(bossBall.targetPosition, bossBall.startingPosition));
