@@ -4540,6 +4540,8 @@ static Vector2 arenaLerpLocation = {0};
 
 static float bossInfoTimer = 0;
 
+static float introductionSkipTimer = 0;
+
 void updateAndRenderIntroduction(void) {
   switch (currentBoss) {
   case BOSS_MARINE: {
@@ -4550,16 +4552,35 @@ void updateAndRenderIntroduction(void) {
   } break;
   }
 
+  introductionSkipTimer -= GetFrameTime();
+
+  Vector2 playerDestination = {
+    .x = (float)LEVEL_WIDTH / 2,
+    .y = LEVEL_HEIGHT - ((float)LEVEL_HEIGHT / 6),
+  };
+
+  if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && introductionSkipTimer <= 0.0f) {
+    arenaLerp = 1.0f;
+    gameState = GAME_BOSS;
+    isGamePaused = false;
+
+    player.position = playerDestination;
+
+    switch (currentBoss) {
+    case BOSS_MARINE: {
+      bossMarine.attackTimer = 0.5f;
+      bossMarine.currentAttack = BOSS_MARINE_NOT_SHOOTING;
+    } break;
+    case BOSS_BALL: {
+    } break;
+    }
+  }
+
   switch (introductionStage) {
   case BOSS_INTRODUCTION_BEGINNING: {
     cameraIntroductionTarget = (Vector2) {
       .x = (float)LEVEL_WIDTH / 2,
       .y = LEVEL_HEIGHT - (((float)LEVEL_HEIGHT / 6) / 2),
-    };
-
-    Vector2 playerDestination = {
-      .x = (float)LEVEL_WIDTH / 2,
-      .y = LEVEL_HEIGHT - ((float)LEVEL_HEIGHT / 6),
     };
 
     player.position = Vector2Lerp(player.position,
@@ -4657,6 +4678,7 @@ void updateAndRenderTutorial(void) {
     PlaySound(beep);
 
     seenTutorial = true;
+    introductionSkipTimer = 0.1f;
     gameState = GAME_BOSS_INTRODUCTION;
     introductionStage = BOSS_INTRODUCTION_BEGINNING;
     lookingDirection = Vector2Zero();
@@ -4896,6 +4918,7 @@ void updateAndRenderStats(void) {
 
     switch (currentBoss) {
     case BOSS_MARINE: {
+      introductionSkipTimer = 0.1f;
       gameState = GAME_BOSS_INTRODUCTION;
       currentBoss = BOSS_BALL;
       introductionStage = BOSS_INTRODUCTION_BEGINNING;
