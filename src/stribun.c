@@ -3722,7 +3722,7 @@ void bossBallAttack(void) {
       bossBall.weapons[i].laserLength = 0;
       bossBall.weapons[i].chargeLevel = 0;
 
-      bossBall.weapons[i].attackCooldown = bossBall.weapons[i].isDisconnected ? 1.5f : 0.5f;
+      bossBall.weapons[i].attackCooldown = bossBall.weapons[i].isDisconnected ? 2.5f : 0.5f;
     }
   }
 }
@@ -4782,7 +4782,7 @@ void updateAndRenderStats(void) {
 
     DrawTextPro(f, kills_stat, pos, Vector2Scale(size, 0.5f), 0, fontSize, spacing, WHITE);
 
-    if (currentBoss == BOSS_MARINE) {
+    if (currentBoss == BOSS_MARINE && player.health > 0) {
       float perkMul = mul * 3;
       DrawTexturePro(sprites,
                      perkRect(firstNewPerk),
