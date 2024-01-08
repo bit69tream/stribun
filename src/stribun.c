@@ -381,6 +381,9 @@ static Shader playerHealthOverlayShader = {0};
 static int playerHealthOverlayHealth = 0;
 static Texture2D playerHealthMaskTexture = {0};
 
+static Shader playerHealthBarShader = {0};
+static int playerHealthBarHealth = {0};
+
 static Shader pixelationShader = {0};
 static int pixelationShaderPixelSize = {0};
 
@@ -1424,6 +1427,7 @@ void renderBackground(bool dom) {
 
 static RenderTexture2D playerTexture = {0};
 static RenderTexture2D playerTexture1 = {0};
+static RenderTexture2D playerTexture2 = {0};
 
 #define THRUSTERS_BOTTOM 0b0001
 #define THRUSTERS_TOP    0b0010
@@ -1611,6 +1615,10 @@ static int dashResetShaderAlpha = 0;
 void renderPlayerTexture(void) {
   int thrusters = whichThrustersToUse();
 
+  float health = (float)player.health / (float)MAX_PLAYER_HEALTH;
+
+  printf("h: %.2f %d\n", health, player.health);
+
   BeginTextureMode(playerTexture1); {
     ClearBackground(BLANK);
 
@@ -1626,8 +1634,6 @@ void renderPlayerTexture(void) {
                    0,
                    WHITE);
 
-    float health = (float)player.health / (float)MAX_PLAYER_HEALTH;
-
     SetShaderValue(playerHealthOverlayShader,
                    playerHealthOverlayHealth,
                    &health,
@@ -1639,6 +1645,22 @@ void renderPlayerTexture(void) {
                   WHITE);
     } EndShaderMode();
   } EndTextureMode();
+
+  BeginTextureMode(playerTexture2); {
+    ClearBackground(BLANK);
+
+    SetShaderValue(playerHealthBarShader,
+                   playerHealthBarHealth,
+                   &health,
+                   SHADER_UNIFORM_FLOAT);
+
+    BeginShaderMode(playerHealthBarShader); {
+      DrawTexture(playerTexture1.texture,
+                  0, 0,
+                  WHITE);
+    }; EndShaderMode();
+  }; EndTextureMode();
+
 
   BeginTextureMode(playerTexture); {
     ClearBackground(BLANK);
@@ -2200,6 +2222,24 @@ static Rectangle bossMarineHeadRect = {
   .height = 21,
 };
 
+void renderPlayerHealthBar(void) {
+  Rectangle rect = {
+    .x = 20,
+    .y = 20,
+    .width = playerRect.width * camera.zoom * SPRITES_SCALE,
+    .height = playerRect.height * camera.zoom * SPRITES_SCALE,
+  };
+
+  DrawTexturePro(playerTexture2.texture,
+                 (Rectangle) {
+                   0, 0, playerTexture2.texture.width, playerTexture2.texture.height
+                 },
+                 rect,
+                 Vector2Zero(),
+                 0,
+                 WHITE);
+}
+
 void renderBossHealthBar(void) {
   const float screenFill = 0.7;
 
@@ -2505,6 +2545,7 @@ void renderFinal(void) {
 
     if (gameState == GAME_BOSS) {
       renderBossHealthBar();
+      renderPlayerHealthBar();
     }
 
     if (gameState != GAME_BOSS_INTRODUCTION &&
@@ -3281,6 +3322,22 @@ void initShaders(void) {
   }
 
   {
+    playerHealthBarShader = LoadShader(NULL, TextFormat("resources/health-bar-%d.frag", GLSL_VERSION));
+    Vector4 good = ColorNormalize(GREEN);
+    Vector4 bad = ColorNormalize(RED);
+
+    SetShaderValue(playerHealthBarShader,
+                   GetShaderLocation(playerHealthBarShader, "goodColor"),
+                   &good,
+                   SHADER_UNIFORM_VEC4);
+    SetShaderValue(playerHealthBarShader,
+                   GetShaderLocation(playerHealthBarShader, "badColor"),
+                   &bad,
+                   SHADER_UNIFORM_VEC4);
+    playerHealthBarHealth = GetShaderLocation(playerHealthBarShader, "health");
+  }
+
+  {
     playerHealthOverlayShader = LoadShader(NULL, TextFormat("resources/health-overlay-%d.frag", GLSL_VERSION));
 
     /* Vector4 good = ColorNormalize((Color) {164, 36, 40, 255}); */
@@ -3348,6 +3405,7 @@ void initTextures(void) {
 
   playerTexture = LoadRenderTexture(playerRect.width, playerRect.height);
   playerTexture1 = LoadRenderTexture(playerRect.width, playerRect.height);
+  playerTexture2 = LoadRenderTexture(playerRect.width, playerRect.height);
 
   laserTexture = LoadRenderTexture(LASER_WIDTH, LASER_HEIGHT);
 }
@@ -3454,6 +3512,7 @@ void updateAndRenderPauseScreen(void) {
 
       if (gameState == GAME_BOSS) {
         renderBossHealthBar();
+        renderPlayerHealthBar();
       }
     }
 
