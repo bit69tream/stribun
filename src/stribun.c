@@ -231,9 +231,6 @@ Rectangle bossBallWeaponRects[BOSS_BALL_WEAPON_COUNT] = {
 
 static Rectangle bossBallChargedLaserRect = {422, 4, 25, 41};
 
-#define BOSS_BALL_MAX_LASERS 2
-static RenderTexture2D bossBallChargedLaserTextures[BOSS_BALL_MAX_LASERS] = {0};
-
 float bossBallWeaponHitboxRadiuses[BOSS_BALL_WEAPON_COUNT] = {
   [BOSS_BALL_WEAPON_TURRET] = 70.0f,
   [BOSS_BALL_WEAPON_LASER] = 50.0f,
@@ -259,7 +256,6 @@ typedef struct {
   float standingWalkingTimer;
   float walkingDirection;
 
-  int laserId;
   float chargeLevel;
 } BossBallWeapon;
 
@@ -1942,28 +1938,11 @@ void renderBoss(void) {
 
 static float blackBackgroundAlpha = 0;
 
-/* void prerenderBossBallLasers(void) { */
-/*   for (int i = 0; i < BOSS_BALL_WEAPONS; i++) { */
-/*     if (bossBall.weapons[i].type != BOSS_BALL_WEAPON_LASER) { */
-/*       continue; */
-/*     } */
-
-/*     Rectangle r = bossBallWeaponRects[bossBall.weapons[i].type]; */
-
-/*     BeginTextureMode(bossBallChargedLaserTextures[bossBall.weapons[i].laserId]); { */
-/*       DrawTexturePro(sprites, r, (Rectangle) {0, 0, r.width, r.height}, Vector2Zero(), 0, WHITE); */
-
-/*       DrawTexturePro(sprites, bossBallChargedLaserRect, (Rectangle) {0, 0, r.width, r.height}, Vector2Zero(), 0, ColorAlpha(WHITE, bossBall.weapons[i].chargeLevel)); */
-/*     } EndTextureMode(); */
-/*   } */
-/* } */
-
 void renderPhase1(void) {
   renderPlayerTexture();
 
   if (currentBoss == BOSS_BALL) {
     prerenderBossBall();
-    /* prerenderBossBallLasers(void); */
   }
 
   BeginTextureMode(target); {
@@ -2696,12 +2675,6 @@ void initBossBallResources(void) {
 
   bossBallMusic = LoadMusicStream("resources/reddream.xm");
   SetMusicVolume(bossBallMusic, 0.5f);
-
-  static_assert(BOSS_BALL_MAX_LASERS == 2);
-  bossBallChargedLaserTextures[0] = LoadRenderTexture(bossBallWeaponRects[BOSS_BALL_WEAPON_LASER].width,
-                                                      bossBallWeaponRects[BOSS_BALL_WEAPON_LASER].height);
-  bossBallChargedLaserTextures[1] = LoadRenderTexture(bossBallWeaponRects[BOSS_BALL_WEAPON_LASER].width,
-                                                      bossBallWeaponRects[BOSS_BALL_WEAPON_LASER].height);
 }
 
 void bossBallCheckCollisions(bool sendAsteroidsFlying) {
@@ -2810,7 +2783,6 @@ void initBossBall(void) {
   static_assert((sizeof(types) / sizeof(types[0])) == BOSS_BALL_WEAPONS);
 
   int i = 0;
-  int laserId = 0;
   while (i < BOSS_BALL_WEAPONS) {
     int index = GetRandomValue(0, BOSS_BALL_WEAPONS - 1);
     if (types[index] == BOSS_BALL_WEAPON_NONE) {
@@ -2823,11 +2795,6 @@ void initBossBall(void) {
       .fireCooldown = (float)GetRandomValue(1, 15) / 10.0f,
       .isDisconnected = false,
     };
-
-    if (types[index] == BOSS_BALL_WEAPON_LASER) {
-      bossBall.weapons[i].laserId = laserId;
-      laserId += 1;
-    }
 
     types[index] = BOSS_BALL_WEAPON_NONE;
     i++;
