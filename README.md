@@ -1,7 +1,7 @@
 ## STRIBUN
 A space shooter inspired by games like Enter The Gungeon, Furi and Nuclear Throne. _(And ofc Asteroids ;>)_
 
-![$(STRIBUN)](screenshots/screenshot000.png "$(STRIBUN)")
+![$(STRIBUN)](logo.png "$(STRIBUN)")
 
 ### Controls
 
@@ -11,14 +11,14 @@ A space shooter inspired by games like Enter The Gungeon, Furi and Nuclear Thron
 
 ### Screenshots
 
-_TODO: Show your game to the world, animated GIFs recommended!._
+![uziel battle](screenshots/uziel.gif)
+![rigor battle](screenshots/rigor.gif)
 
 ### Developers
 
  - bit69tream - Everything 😎
 
 ### Links
- - YouTube Gameplay: $(YouTube Link)
  - itch.io Release: $(itch.io Game Page)
 
 ### Used Resources
