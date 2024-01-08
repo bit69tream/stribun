@@ -506,6 +506,8 @@ typedef struct {
 
   float lifetime;
   bool canBounce;
+
+  bool homesOntoPlayer;
 } Projectile;
 
 #define PROJECTILES_MAX 1024
@@ -2429,11 +2431,17 @@ void renderFinal(void) {
 }
 
 bool doesRectangleCollideWithACircle(Rectangle a, float angle,
-                                     Vector2 b, float r) {
+                                     Vector2 b, float r,
+                                     Vector2 origin) {
   Vector2 aPos = {a.x, a.y};
   Vector2 relBPos = Vector2Subtract(b, aPos);
   Vector2 rotRelBPos = Vector2Rotate(relBPos, (-angle) * DEG2RAD);
   Vector2 rotBPos = Vector2Add(aPos, rotRelBPos);
+
+  (void) origin;
+
+  /* a.x -= origin.x; */
+  /* a.y -= origin.y; */
 
   return CheckCollisionCircleRec(rotBPos, r, a);
 }
@@ -2500,9 +2508,14 @@ void checkRegularProjectileCollision(int i) {
 
 void checkSquaredProjectileCollision(int i) {
   Rectangle proj = {
-    .x = projectiles[i].origin.x - (projectiles[i].size.x / 2),
-    .y = projectiles[i].origin.y - (projectiles[i].size.y / 2),
+    .x = projectiles[i].origin.x,
+    .y = projectiles[i].origin.y,
   };
+  Vector2 origin = {
+    (projectiles[i].size.x / 2),
+    (projectiles[i].size.y / 2),
+  };
+
   float angle = projectiles[i].angle;
 
   for (int j = 0; j < asteroidsLen; j++) {
@@ -2511,8 +2524,7 @@ void checkSquaredProjectileCollision(int i) {
                                asteroids[j].position);
       float r = asteroids[j].processedBoundingCircles[bj].radius;
 
-      if (doesRectangleCollideWithACircle(proj, angle,
-                                          pos, r)) {
+      if (doesRectangleCollideWithACircle(proj, angle, pos, r, origin)) {
         projectiles[i].willBeDestroyed = true;
         return;
       }
@@ -2522,8 +2534,7 @@ void checkSquaredProjectileCollision(int i) {
   if (!player.isInvincible &&
       !projectiles[i].willBeDestroyed &&
       projectiles[i].isHurtfulForPlayer &&
-      doesRectangleCollideWithACircle(proj, angle,
-                                      player.position, PLAYER_HITBOX_RADIUS)) {
+      doesRectangleCollideWithACircle(proj, angle, player.position, PLAYER_HITBOX_RADIUS, origin)) {
     projectiles[i].willBeDestroyed = true;
 
     if (player.iframeTimer == 0.0f) {
@@ -2551,7 +2562,7 @@ void checkSquaredProjectileCollision(int i) {
                                bossMarine.processedBoundingCircles[j].position);
       float r = bossMarine.processedBoundingCircles[j].radius;
 
-      if (doesRectangleCollideWithACircle(proj, angle, pos, r)) {
+      if (doesRectangleCollideWithACircle(proj, angle, pos, r, origin)) {
         projectiles[i].willBeDestroyed = true;
         bossMarine.health -= projectiles[i].damage;
         return;
@@ -2559,7 +2570,7 @@ void checkSquaredProjectileCollision(int i) {
     }
   } break;
   case BOSS_BALL: {
-    if (doesRectangleCollideWithACircle(proj, angle, bossBall.position, BOSS_BALL_HITBOX_RADIUS)) {
+    if (doesRectangleCollideWithACircle(proj, angle, bossBall.position, BOSS_BALL_HITBOX_RADIUS, origin)) {
       projectiles[i].willBeDestroyed = true;
       bossBall.health -= projectiles[i].damage;
       return;
@@ -2651,6 +2662,16 @@ void updateProjectiles(void) {
 
     if (projectiles[i].willBeDestroyed) {
       continue;
+    }
+
+    if (projectiles[i].homesOntoPlayer && projectiles[i].type == PROJECTILE_SQUARED) {
+      Vector2 direction = Vector2Normalize(Vector2Subtract(player.position, projectiles[i].origin));
+      float speed = fabsf(Vector2Length(projectiles[i].delta)) - (GetFrameTime() * 2);
+
+      speed = speed < 0.0 ? 0 : speed;
+
+      projectiles[i].delta = Vector2Scale(direction, speed);
+      projectiles[i].angle = atan2(projectiles[i].delta.y, projectiles[i].delta.x) * RAD2DEG + 90;
     }
 
     projectiles[i].origin = Vector2Add(projectiles[i].delta, projectiles[i].origin);
@@ -3475,15 +3496,7 @@ void bossBallRoll(void) {
   }
 }
 
-void bossBallShootProjectile(float speedMultiplier,
-                             float fireCooldown,
-                             Sound *sound,
-                             float lifetime,
-                             Color inside,
-                             Color outside,
-                             int i,
-                             float angle,
-                             Vector2 origin) {
+void bossBallShootProjectile(float speedMultiplier, float fireCooldown, Sound *sound, float lifetime, Color inside, Color outside, int i, float angle, Vector2 origin) {
   if (bossBall.weapons[i].fireCooldown > 0.0f) {
     return;
   }
@@ -3517,68 +3530,85 @@ void bossBallShootProjectile(float speedMultiplier,
   }
 }
 
-void attackWithADisconnectedWeapon(int i) {
-  (void) i;
-}
-
-void attackWithAConnectedWeapon(int i) {
-  Color red = {243, 83, 54, 255};
-
-  bossBall.weapons[i].attackTimer -= GetFrameTime();
-
-  if (bossBall.weapons[i].attackTimer > 0.0f) {
-    bossBall.weapons[i].fireCooldown -= GetFrameTime();
-
-    float angle = bossBall.weapons[i].angle + bossBall.weapons[i].angleOffset + bossBall.weaponAngleOffset;
-    switch (bossBall.weapons[i].type) {
-    case BOSS_BALL_WEAPON_TURRET: {
-      if (bossBall.weapons[i].fireCooldown <= 0.0f) {
-        bossBallShootProjectile(0.4f, 0, NULL, 10, red, RED, i, angle, bossBall.weapons[i].bulletOrigin);
-        bossBallShootProjectile(0.4f, 0.1f, NULL, 10, red, RED, i, angle, bossBall.weapons[i].bulletOrigin2);
-        PlaySound(bossBallTurretSound);
-      }
-    } break;
-    case BOSS_BALL_WEAPON_LASER: {
-      if (bossBall.weapons[i].chargeLevel == 0.0f) {
-        PlaySound(bossBallLaserChargingSound);
-      }
-
-      UpdateMusicStream(bossBall.weapons[i].soundEffect);
-
-      if (bossBall.weapons[i].chargeLevel < 1.0f) {
-        bossBall.weapons[i].chargeLevel += GetFrameTime();
-      } else {
-        if (!IsMusicStreamPlaying(bossBall.weapons[i].soundEffect)) {
-          PlayMusicStream(bossBall.weapons[i].soundEffect);
-        }
-
-        bossBall.weapons[i].laserLength = Lerp(bossBall.weapons[i].laserLength, LASER_WIDTH, 0.1f);
-      }
-    } break;
-    case BOSS_BALL_WEAPON_ROCKET_LAUNCHER: {
-
-    } break;
-    case BOSS_BALL_WEAPON_COUNT: break;
-    case BOSS_BALL_WEAPON_NONE: break;
-    }
-  } else {
-    StopMusicStream(bossBall.weapons[i].soundEffect);
-    bossBall.weapons[i].laserLength = 0;
-    bossBall.weapons[i].chargeLevel = 0;
-  }
-
-  if (bossBall.weapons[i].seesPlayer &&
-      bossBall.weapons[i].attackTimer <= 0.5f) {
-    bossBall.weapons[i].attackTimer = 1;//GetRandomValue(1, 2);
-  }
-}
-
 void bossBallAttack(void) {
   for (int i = 0; i < BOSS_BALL_WEAPONS; i++) {
-    if (bossBall.weapons[i].isDisconnected) {
-      attackWithADisconnectedWeapon(i);
+    Color red = {243, 83, 54, 255};
+
+    bossBall.weapons[i].attackTimer -= GetFrameTime();
+
+    if (bossBall.weapons[i].attackTimer > 0.0f) {
+      bossBall.weapons[i].fireCooldown -= GetFrameTime();
+
+      float angle = bossBall.weapons[i].angle + bossBall.weapons[i].angleOffset + bossBall.weaponAngleOffset;
+      switch (bossBall.weapons[i].type) {
+      case BOSS_BALL_WEAPON_TURRET: {
+        if (bossBall.weapons[i].fireCooldown <= 0.0f) {
+          bossBallShootProjectile(0.4f, 0, NULL, 10, red, RED, i, angle, bossBall.weapons[i].bulletOrigin);
+          bossBallShootProjectile(0.4f, 0.1f, NULL, 10, red, RED, i, angle, bossBall.weapons[i].bulletOrigin2);
+          PlaySound(bossBallTurretSound);
+        }
+      } break;
+      case BOSS_BALL_WEAPON_LASER: {
+        if (bossBall.weapons[i].chargeLevel == 0.0f) {
+          PlaySound(bossBallLaserChargingSound);
+        }
+
+        UpdateMusicStream(bossBall.weapons[i].soundEffect);
+
+        if (bossBall.weapons[i].chargeLevel < 1.0f) {
+          bossBall.weapons[i].chargeLevel += GetFrameTime();
+        } else {
+          if (!IsMusicStreamPlaying(bossBall.weapons[i].soundEffect)) {
+            PlayMusicStream(bossBall.weapons[i].soundEffect);
+          }
+
+          bossBall.weapons[i].laserLength = Lerp(bossBall.weapons[i].laserLength, LASER_WIDTH, 0.1f);
+        }
+      } break;
+      case BOSS_BALL_WEAPON_ROCKET_LAUNCHER: {
+        if (bossBall.weapons[i].fireCooldown > 0.0f) {
+          break;
+        }
+
+        Projectile *new_projectile = push_projectile();
+
+        if (new_projectile == NULL) {
+          break;
+        }
+
+        *new_projectile = (Projectile) {
+          .type = PROJECTILE_SQUARED,
+          .isHurtfulForBoss = false,
+          .isHurtfulForPlayer = true,
+          .damage = 1,
+          .origin = Vector2Add(bossBall.weapons[i].bulletOrigin, bossBall.weapons[i].position),
+          .size = (Vector2) {30, 50},
+          .delta = Vector2Rotate((Vector2){0, -10}, angle * DEG2RAD),
+          .angle = angle,
+          .inside = BLACK,
+          .outside = red,
+          .lifetime = 5,
+          .canBounce = false,
+          .homesOntoPlayer = true,
+        };
+
+        bossBall.weapons[i].fireCooldown = 0.7f;
+
+      } break;
+      case BOSS_BALL_WEAPON_COUNT: break;
+      case BOSS_BALL_WEAPON_NONE: break;
+      }
     } else {
-      attackWithAConnectedWeapon(i);
+      StopMusicStream(bossBall.weapons[i].soundEffect);
+      bossBall.weapons[i].laserLength = 0;
+      bossBall.weapons[i].chargeLevel = 0;
+
+      bossBall.weapons[i].fireCooldown = bossBall.weapons[i].isDisconnected ? 3 : 0.5f;
+    }
+
+    if (bossBall.weapons[i].seesPlayer &&
+        bossBall.weapons[i].attackTimer <= 0.0f) {
+      bossBall.weapons[i].attackTimer = 1;
     }
   }
 }
