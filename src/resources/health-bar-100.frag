@@ -4,8 +4,6 @@ precision mediump float;
 
 varying vec2 fragTexCoord;
 
-out vec4 finalColor;
-
 uniform float health;
 
 uniform sampler2D texture0;
