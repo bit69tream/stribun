@@ -2914,7 +2914,7 @@ void initBossBall(void) {
     BOSS_BALL_WEAPON_ROCKET_LAUNCHER,
   };
 
-  static_assert((sizeof(types) / sizeof(types[0])) == BOSS_BALL_WEAPONS);
+  static_assert((sizeof(types) / sizeof(types[0])) == BOSS_BALL_WEAPONS, "asdf");
 
   int i = 0;
   while (i < BOSS_BALL_WEAPONS) {
