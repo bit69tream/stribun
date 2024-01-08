@@ -1617,8 +1617,6 @@ void renderPlayerTexture(void) {
 
   float health = (float)player.health / (float)MAX_PLAYER_HEALTH;
 
-  printf("h: %.2f %d\n", health, player.health);
-
   BeginTextureMode(playerTexture1); {
     ClearBackground(BLANK);
 
@@ -2717,7 +2715,7 @@ void checkSquaredProjectileCollision(int i) {
 
         StopMusicStream(bossBall.weapons[i].soundEffect);
 
-        bossBall.weapons[i].attackCooldown = 4.0f;
+        bossBall.weapons[i].attackCooldown = 2.0f;
         bossBall.weapons[i].attackTimer = 0.0f;
 
         bossBall.weapons[i].laserLength = 0;
@@ -3323,8 +3321,8 @@ void initShaders(void) {
 
   {
     playerHealthBarShader = LoadShader(NULL, TextFormat("resources/health-bar-%d.frag", GLSL_VERSION));
-    Vector4 good = ColorNormalize(GREEN);
-    Vector4 bad = ColorNormalize(RED);
+    Vector4 good = ColorNormalize((Color) {129, 73, 151, 255});
+    Vector4 bad = ColorNormalize(BLACK);
 
     SetShaderValue(playerHealthBarShader,
                    GetShaderLocation(playerHealthBarShader, "goodColor"),
