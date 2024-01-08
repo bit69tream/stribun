@@ -3771,6 +3771,12 @@ void bossBallUpdateDisconnectedWeapon(int i) {
   bossBall.weapons[i].angle = Lerp(bossBall.weapons[i].angle, angle, t);
 
   bossBallWeaponCalculateBulletOrigin(i, bossBall.weapons[i].angle);
+
+  float r = bossBallWeaponHitboxRadiuses[bossBall.weapons[i].type];
+  Vector2 min = {r, r};
+  Vector2 max = {LEVEL_WIDTH - r, LEVEL_HEIGHT - r};
+
+  bossBall.weapons[i].position = Vector2Clamp(bossBall.weapons[i].position, min, max);
 }
 
 void bossBallUpdateWeapons(void) {
