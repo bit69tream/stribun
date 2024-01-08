@@ -187,7 +187,7 @@ typedef struct {
 BossMarine bossMarine = {0};
 
 #define BOSS_BALL_NAME "Rigor Mortis"
-#define BOSS_BALL_MAX_HEALTH 1024
+#define BOSS_BALL_MAX_HEALTH (1024 + 512)
 
 static Shader bossBallLightingShader = {0};
 static Model bossBallModel = {0};
@@ -198,6 +198,7 @@ static Music bossBallMusic = {0};
 
 static Sound bossBallTurretSound = {0};
 static Sound bossBallLaserChargingSound = {0};
+static Sound bossBallRocketSound = {0};
 
 static RenderTexture2D bossBallTarget = {0};
 static RenderTexture2D bossBallTargetScreen = {0};
@@ -3080,6 +3081,8 @@ void initSoundEffects(void) {
 
   bossBallLaserChargingSound = LoadSound("resources/laser-charging.wav");
   SetSoundVolume(bossBallLaserChargingSound, 0.5);
+
+  bossBallRocketSound = LoadSound("resources/rocket.wav");
 }
 
 void initShaders(void) {
@@ -3594,6 +3597,7 @@ void bossBallAttack(void) {
 
         bossBall.weapons[i].fireCooldown = 0.7f;
 
+        PlaySound(bossBallRocketSound);
       } break;
       case BOSS_BALL_WEAPON_COUNT: break;
       case BOSS_BALL_WEAPON_NONE: break;
