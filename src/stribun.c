@@ -257,6 +257,9 @@ typedef struct {
   float walkingDirection;
 
   float chargeLevel;
+
+  Vector2 bulletOrigin;
+  Vector2 bulletOrigin2;
 } BossBallWeapon;
 
 typedef struct {
@@ -3335,6 +3338,31 @@ void bossBallAttack(void) {
   /* TODO */
 }
 
+void bossBallWeaponCalculateBulletOrigin(int i, float angle) {
+  Vector2 laserBulletOrigin = Vector2Scale((Vector2){0, -20}, SPRITES_SCALE);
+  Vector2 rocketLauncherBulletOrigin = Vector2Scale((Vector2){0, -30}, SPRITES_SCALE);
+
+  Vector2 turretBulletOrigin1 = Vector2Scale((Vector2){-13, -23}, SPRITES_SCALE);
+  Vector2 turretBulletOrigin2 = Vector2Scale((Vector2){13, -23}, SPRITES_SCALE);
+
+  float rads = angle * DEG2RAD;
+
+  switch (bossBall.weapons[i].type) {
+  case BOSS_BALL_WEAPON_LASER: {
+    bossBall.weapons[i].bulletOrigin = Vector2Rotate(laserBulletOrigin, rads);
+  } break;
+  case BOSS_BALL_WEAPON_ROCKET_LAUNCHER: {
+    bossBall.weapons[i].bulletOrigin = Vector2Rotate(rocketLauncherBulletOrigin, rads);
+  } break;
+  case BOSS_BALL_WEAPON_TURRET: {
+    bossBall.weapons[i].bulletOrigin = Vector2Rotate(turretBulletOrigin1, rads);
+    bossBall.weapons[i].bulletOrigin2 = Vector2Rotate(turretBulletOrigin2, rads);
+  } break;
+  case BOSS_BALL_WEAPON_COUNT: break;
+  case BOSS_BALL_WEAPON_NONE: break;
+  }
+}
+
 #define BOSS_BALL_WEAPON_DISTANCE ((float)BOSS_BALL_HITBOX_RADIUS * 1.5f)
 
 void bossBallUpdateConnectedWeapon(int i) {
@@ -3363,6 +3391,8 @@ void bossBallUpdateConnectedWeapon(int i) {
   }
 
   bossBall.weapons[i].angleOffset = Lerp(bossBall.weapons[i].angleOffset, offset, 0.1f);
+
+  bossBallWeaponCalculateBulletOrigin(i, bossBall.weapons[i].angle + bossBall.weaponAngleOffset + bossBall.weapons[i].angleOffset);
 }
 
 void disconnectedWeaponsCollision(int i) {
@@ -3434,6 +3464,7 @@ void bossBallUpdateDisconnectedWeapon(int i) {
 
   float angle = angleBetweenPoints(bossBall.weapons[i].position, player.position);
   bossBall.weapons[i].angle = Lerp(bossBall.weapons[i].angle, angle, 0.1f);
+  bossBallWeaponCalculateBulletOrigin(i, bossBall.weapons[i].angle);
 }
 
 void bossBallUpdateWeapons(void) {
