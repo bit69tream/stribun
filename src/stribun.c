@@ -275,6 +275,8 @@ typedef struct {
 
   float laserLength;
   Music soundEffect;
+
+  float attackCooldown;
 } BossBallWeapon;
 
 typedef struct {
@@ -1238,6 +1240,10 @@ void processCollisions(void) {
     return;
   }
 
+  if (player.isInvincible || player.iframeTimer > 0.0f) {
+    return;
+  }
+
   for (int i = 0; i < BOSS_BALL_WEAPONS; i++) {
     if (bossBall.weapons[i].type != BOSS_BALL_WEAPON_LASER) {
       continue;
@@ -1259,17 +1265,8 @@ void processCollisions(void) {
                                                   bossBall.weapons[i].position));
     Vector2 rotatedRelativePlayerPosition =
       Vector2Rotate(relativePlayerPosition, (angle) * DEG2RAD * -1);
-    /* Vector2 rotatedPlayerPosition = */
-    /*   Vector2Add(bossBall.weapons[i].bulletOrigin, rotatedRelativePlayerPosition); */
 
     float hh = LASER_HEIGHT / 2;
-
-    /* Rectangle laser = { */
-    /*   bossBall.weapons[i].bulletOrigin.x - hh, */
-    /*   bossBall.weapons[i].bulletOrigin.y, */
-    /*   LASER_HEIGHT, */
-    /*   bossBall.weapons[i].laserLength, */
-    /* }; */
 
     Rectangle laser = {
       -hh,
@@ -3537,17 +3534,35 @@ void bossBallAttack(void) {
   for (int i = 0; i < BOSS_BALL_WEAPONS; i++) {
     Color red = {243, 83, 54, 255};
 
+    bossBall.weapons[i].attackCooldown -= GetFrameTime();
+
+    if (bossBall.weapons[i].attackCooldown > 0.0f) {
+      continue;
+    }
+
     bossBall.weapons[i].attackTimer -= GetFrameTime();
+
+    if (bossBall.weapons[i].seesPlayer &&
+        bossBall.weapons[i].attackTimer <= 0.0f &&
+        bossBall.weapons[i].attackCooldown <= 0.0f) {
+      bossBall.weapons[i].attackTimer = 1;
+    }
 
     if (bossBall.weapons[i].attackTimer > 0.0f) {
       bossBall.weapons[i].fireCooldown -= GetFrameTime();
 
-      float angle = bossBall.weapons[i].angle + bossBall.weapons[i].angleOffset + bossBall.weaponAngleOffset;
+      float angle = 0;
+      if (bossBall.weapons[i].isDisconnected) {
+        angle = bossBall.weapons[i].angle;
+      } else {
+        angle = bossBall.weapons[i].angle + bossBall.weapons[i].angleOffset + bossBall.weaponAngleOffset;
+      }
+
       switch (bossBall.weapons[i].type) {
       case BOSS_BALL_WEAPON_TURRET: {
         if (bossBall.weapons[i].fireCooldown <= 0.0f) {
-          bossBallShootProjectile(0.4f, 0, NULL, 10, red, RED, i, angle, bossBall.weapons[i].bulletOrigin);
-          bossBallShootProjectile(0.4f, 0.1f, NULL, 10, red, RED, i, angle, bossBall.weapons[i].bulletOrigin2);
+          bossBallShootProjectile(0.5f, 0, NULL, 10, red, RED, i, angle, bossBall.weapons[i].bulletOrigin);
+          bossBallShootProjectile(0.5f, 0.07f, NULL, 10, red, RED, i, angle, bossBall.weapons[i].bulletOrigin2);
           PlaySound(bossBallTurretSound);
         }
       } break;
@@ -3595,7 +3610,7 @@ void bossBallAttack(void) {
           .homesOntoPlayer = true,
         };
 
-        bossBall.weapons[i].fireCooldown = 0.7f;
+        bossBall.weapons[i].fireCooldown = 1.0f;
 
         PlaySound(bossBallRocketSound);
       } break;
@@ -3604,15 +3619,11 @@ void bossBallAttack(void) {
       }
     } else {
       StopMusicStream(bossBall.weapons[i].soundEffect);
+
       bossBall.weapons[i].laserLength = 0;
       bossBall.weapons[i].chargeLevel = 0;
 
-      bossBall.weapons[i].fireCooldown = bossBall.weapons[i].isDisconnected ? 3 : 0.5f;
-    }
-
-    if (bossBall.weapons[i].seesPlayer &&
-        bossBall.weapons[i].attackTimer <= 0.0f) {
-      bossBall.weapons[i].attackTimer = 1;
+      bossBall.weapons[i].attackCooldown = bossBall.weapons[i].isDisconnected ? 1.5f : 0.5f;
     }
   }
 }
