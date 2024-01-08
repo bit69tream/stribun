@@ -16,7 +16,7 @@ float wave(vec2 muv, float p) {
 }
 
 vec2 transformUv(vec2 muv) {
-  float t = smoothstep(10, 50, resolution.x * muv.x) * 5.5 + .1;
+  float t = smoothstep(10., 50., resolution.x * muv.x) * 5.5 + .1;
 
   muv.y -= .5;
   muv.y /= t;
@@ -44,8 +44,8 @@ void main() {
 
   float t = (1. / it) * speed;
 
-  vec2 f2 = fuv * 2;
-  vec2 m2 = muv * 2;
+  vec2 f2 = fuv * 2.;
+  vec2 m2 = muv * 2.;
 
   fuv.y *= 1. + smoothstep(.1, .7, (sin(tm * .1) * cos(tm * .1)) + 1.);
   muv.y *= 1. + smoothstep(.1, .7, (sin(tm * .1) * cos(tm * .1)) + 1.);
@@ -66,7 +66,7 @@ void main() {
   a /= it;
 
   gl_FragColor =
-    vec4((c * a * 2) +
-         (c0 * float(f2.y >= 0.) * smoothstep(2.5, 0., f2.y) * 6) +
-         (c0 * float(m2.y >= 0.) * smoothstep(2.5, 0., m2.y) * 6), a);
+    vec4((c * a * 2.) +
+         (c0 * float(f2.y >= 0.) * smoothstep(2.5, 0., f2.y) * 6.) +
+         (c0 * float(m2.y >= 0.) * smoothstep(2.5, 0., m2.y) * 6.), a);
 }
