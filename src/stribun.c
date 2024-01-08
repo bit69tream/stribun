@@ -196,6 +196,9 @@ static Light bossBallLight = {0};
 static Camera bossBallCamera = {0};
 static Music bossBallMusic = {0};
 
+static Sound bossBallTurretSound = {0};
+static Sound bossBallLaserChargingSound = {0};
+
 static RenderTexture2D bossBallTarget = {0};
 static RenderTexture2D bossBallTargetScreen = {0};
 
@@ -237,6 +240,14 @@ float bossBallWeaponHitboxRadiuses[BOSS_BALL_WEAPON_COUNT] = {
   [BOSS_BALL_WEAPON_ROCKET_LAUNCHER] = 60.0f,
 };
 
+#define LASER_WIDTH 2048
+#define LASER_HEIGHT 69
+
+static Shader laserShader = {0};
+static int laserShaderTime = {0};
+
+static RenderTexture2D laserTexture = {0};
+
 typedef struct {
   BossBallWeaponType type;
 
@@ -260,6 +271,9 @@ typedef struct {
 
   Vector2 bulletOrigin;
   Vector2 bulletOrigin2;
+
+  float laserLength;
+  Music soundEffect;
 } BossBallWeapon;
 
 typedef struct {
@@ -275,8 +289,6 @@ typedef struct {
 
   float weaponAngleOffset;
   float weaponAngleTargetOffset;
-
-  float attackTimer;
 
   float playerInsideDeadZoneTimer;
 
@@ -1218,6 +1230,60 @@ void processCollisions(void) {
       }
     }
   }
+
+  if (currentBoss != BOSS_BALL) {
+    return;
+  }
+
+  for (int i = 0; i < BOSS_BALL_WEAPONS; i++) {
+    if (bossBall.weapons[i].type != BOSS_BALL_WEAPON_LASER) {
+      continue;
+    }
+
+    if (bossBall.weapons[i].chargeLevel < 1.0f) {
+      continue;
+    }
+
+    float angle = 0;
+    if (bossBall.weapons[i].isDisconnected) {
+      angle = bossBall.weapons[i].angle;
+    } else {
+      angle = bossBall.weapons[i].angle + bossBall.weapons[i].angleOffset + bossBall.weaponAngleOffset;
+    }
+
+    Vector2 relativePlayerPosition =
+      Vector2Subtract(player.position, Vector2Add(bossBall.weapons[i].bulletOrigin,
+                                                  bossBall.weapons[i].position));
+    Vector2 rotatedRelativePlayerPosition =
+      Vector2Rotate(relativePlayerPosition, (angle) * DEG2RAD * -1);
+    /* Vector2 rotatedPlayerPosition = */
+    /*   Vector2Add(bossBall.weapons[i].bulletOrigin, rotatedRelativePlayerPosition); */
+
+    float hh = LASER_HEIGHT / 2;
+
+    /* Rectangle laser = { */
+    /*   bossBall.weapons[i].bulletOrigin.x - hh, */
+    /*   bossBall.weapons[i].bulletOrigin.y, */
+    /*   LASER_HEIGHT, */
+    /*   bossBall.weapons[i].laserLength, */
+    /* }; */
+
+    Rectangle laser = {
+      -hh,
+      -bossBall.weapons[i].laserLength,
+      LASER_HEIGHT,
+      LASER_WIDTH,
+    };
+
+    if (CheckCollisionCircleRec(rotatedRelativePlayerPosition,
+                                PLAYER_HITBOX_RADIUS,
+                                laser) &&
+        player.iframeTimer <= 0.0f) {
+      PlaySound(hit);
+      player.health -= 1;
+      player.iframeTimer = 0.4f;
+    }
+  }
 }
 
 void updatePlayerPosition(void) {
@@ -1939,10 +2005,54 @@ void renderBoss(void) {
   }
 }
 
+void renderLaserIntoTexture(void) {
+  SetShaderValue(laserShader,
+                 laserShaderTime,
+                 &time,
+                 SHADER_UNIFORM_FLOAT);
+
+  BeginTextureMode(laserTexture); {
+    ClearBackground(BLANK);
+
+    BeginShaderMode(laserShader); {
+      DrawRectangle(0, 0, LASER_WIDTH, LASER_HEIGHT, WHITE);
+    }; EndShaderMode();
+  }; EndTextureMode();
+}
+
 static float blackBackgroundAlpha = 0;
+
+void renderLasers(void) {
+  for (int i = 0; i < BOSS_BALL_WEAPONS; i++) {
+    if (bossBall.weapons[i].type != BOSS_BALL_WEAPON_LASER) {
+      continue;
+    }
+
+    Vector2 pos = Vector2Add(bossBall.weapons[i].position,
+                             bossBall.weapons[i].bulletOrigin);
+
+    float angle = 0;
+    if (bossBall.weapons[i].isDisconnected) {
+      angle = bossBall.weapons[i].angle;
+    } else {
+      angle = bossBall.weapons[i].angle + bossBall.weapons[i].angleOffset + bossBall.weaponAngleOffset;
+    }
+
+    angle -= 90;
+
+    DrawTexturePro(laserTexture.texture,
+                   (Rectangle) {0, 0, bossBall.weapons[i].laserLength, LASER_HEIGHT},
+                   (Rectangle) {pos.x, pos.y, bossBall.weapons[i].laserLength, LASER_HEIGHT},
+                   (Vector2) {0, LASER_HEIGHT / 2.0f},
+                   angle,
+                   WHITE);
+  }
+}
 
 void renderPhase1(void) {
   renderPlayerTexture();
+
+  renderLaserIntoTexture();
 
   if (currentBoss == BOSS_BALL) {
     prerenderBossBall();
@@ -1986,6 +2096,8 @@ void renderPhase1(void) {
     }
 
     renderProjectiles();
+
+    renderLasers();
 
   } EndTextureMode();
 }
@@ -2799,6 +2911,11 @@ void initBossBall(void) {
       .isDisconnected = false,
     };
 
+    if (types[index] == BOSS_BALL_WEAPON_LASER) {
+      bossBall.weapons[i].soundEffect = LoadMusicStream("resources/laser.wav");
+      SetMusicVolume(bossBall.weapons[i].soundEffect, 2.0f);
+    }
+
     types[index] = BOSS_BALL_WEAPON_NONE;
     i++;
   }
@@ -2936,7 +3053,12 @@ void initSoundEffects(void) {
   bossMarineShotgunSound = LoadSound("resources/shot02.wav");
   bossMarineGunshotSound = LoadSound("resources/shot03.wav");
 
+  bossBallTurretSound = LoadSound("resources/shot03.wav");
+
   playerDeathSound = LoadSound("resources/dead.wav");
+
+  bossBallLaserChargingSound = LoadSound("resources/laser-charging.wav");
+  SetSoundVolume(bossBallLaserChargingSound, 0.3);
 }
 
 void initShaders(void) {
@@ -3043,6 +3165,16 @@ void initShaders(void) {
 
     pixelationShaderPixelSize = GetShaderLocation(pixelationShader, "pixelSize");
   }
+
+  {
+    laserShader = LoadShader(NULL, TextFormat("resources/laser-%d.frag", GLSL_VERSION));
+    SetShaderValue(laserShader,
+                   GetShaderLocation(laserShader, "resolution"),
+                   (float[2]){LASER_WIDTH, LASER_HEIGHT},
+                   SHADER_UNIFORM_VEC2);
+
+    laserShaderTime = GetShaderLocation(laserShader, "time");
+  }
 }
 
 void adjustBossBallTargetScreen(void) {
@@ -3061,6 +3193,8 @@ void initTextures(void) {
 
   playerTexture = LoadRenderTexture(playerRect.width, playerRect.height);
   playerTexture1 = LoadRenderTexture(playerRect.width, playerRect.height);
+
+  laserTexture = LoadRenderTexture(LASER_WIDTH, LASER_HEIGHT);
 }
 
 void initThrusterTrails(void) {
@@ -3334,12 +3468,102 @@ void bossBallRoll(void) {
   }
 }
 
+void bossBallShootProjectile(float speedMultiplier,
+                             float fireCooldown,
+                             Sound *sound,
+                             float lifetime,
+                             Color inside,
+                             Color outside,
+                             int i,
+                             float angle,
+                             Vector2 origin) {
+  if (bossBall.weapons[i].fireCooldown > 0.0f) {
+    return;
+  }
+
+  Projectile *new_projectile = push_projectile();
+
+  if (new_projectile == NULL) {
+    return;
+  }
+
+  *new_projectile = (Projectile) {
+    .type = PROJECTILE_REGULAR,
+    .isHurtfulForBoss = false,
+    .isHurtfulForPlayer = true,
+    .damage = 1,
+    .origin = Vector2Add(origin, bossBall.weapons[i].position),
+    .radius = 10,
+    .delta = Vector2Rotate((Vector2){0, -(25.0f * speedMultiplier)},
+                           angle * DEG2RAD),
+    .angle = 0,
+    .inside = inside,
+    .outside = outside,
+    .lifetime = lifetime,
+    .canBounce = false,
+  };
+
+  bossBall.weapons[i].fireCooldown = fireCooldown;
+
+  if (sound) {
+    PlaySound(*sound);
+  }
+}
+
 void attackWithADisconnectedWeapon(int i) {
   (void) i;
 }
 
 void attackWithAConnectedWeapon(int i) {
-  (void) i;
+  Color red = {243, 83, 54, 255};
+
+  bossBall.weapons[i].attackTimer -= GetFrameTime();
+
+  if (bossBall.weapons[i].attackTimer > 0.0f) {
+    bossBall.weapons[i].fireCooldown -= GetFrameTime();
+
+    float angle = bossBall.weapons[i].angle + bossBall.weapons[i].angleOffset + bossBall.weaponAngleOffset;
+    switch (bossBall.weapons[i].type) {
+    case BOSS_BALL_WEAPON_TURRET: {
+      if (bossBall.weapons[i].fireCooldown <= 0.0f) {
+        bossBallShootProjectile(0.4f, 0, NULL, 10, red, RED, i, angle, bossBall.weapons[i].bulletOrigin);
+        bossBallShootProjectile(0.4f, 0.1f, NULL, 10, red, RED, i, angle, bossBall.weapons[i].bulletOrigin2);
+        PlaySound(bossBallTurretSound);
+      }
+    } break;
+    case BOSS_BALL_WEAPON_LASER: {
+      if (bossBall.weapons[i].chargeLevel == 0.0f) {
+        PlaySound(bossBallLaserChargingSound);
+      }
+
+      UpdateMusicStream(bossBall.weapons[i].soundEffect);
+
+      if (bossBall.weapons[i].chargeLevel < 1.0f) {
+        bossBall.weapons[i].chargeLevel += GetFrameTime();
+      } else {
+        if (!IsMusicStreamPlaying(bossBall.weapons[i].soundEffect)) {
+          PlayMusicStream(bossBall.weapons[i].soundEffect);
+        }
+
+        bossBall.weapons[i].laserLength = Lerp(bossBall.weapons[i].laserLength, LASER_WIDTH, 0.1f);
+      }
+    } break;
+    case BOSS_BALL_WEAPON_ROCKET_LAUNCHER: {
+
+    } break;
+    case BOSS_BALL_WEAPON_COUNT: break;
+    case BOSS_BALL_WEAPON_NONE: break;
+    }
+  } else {
+    StopMusicStream(bossBall.weapons[i].soundEffect);
+    bossBall.weapons[i].laserLength = 0;
+    bossBall.weapons[i].chargeLevel = 0;
+  }
+
+  if (bossBall.weapons[i].seesPlayer &&
+      bossBall.weapons[i].attackTimer <= 0.5f) {
+    bossBall.weapons[i].attackTimer = 1;//GetRandomValue(1, 2);
+  }
 }
 
 void bossBallAttack(void) {
@@ -3396,15 +3620,22 @@ void bossBallUpdateConnectedWeapon(int i) {
   float a = angleBetweenPoints(bossBall.weapons[i].position, player.position);
   float offset = a - angle;
 
-  bossBall.weapons[i].seesPlayer = false;
+  bossBall.weapons[i].seesPlayer = true;
 
 #define BOSS_BALL_MAX_WEAPON_ANGLE_OFFSET 60.0f
   if (fabsf(offset) > BOSS_BALL_MAX_WEAPON_ANGLE_OFFSET) {
     offset = 0;
-    bossBall.weapons[i].seesPlayer = true;
+    bossBall.weapons[i].seesPlayer = false;
   }
 
-  bossBall.weapons[i].angleOffset = Lerp(bossBall.weapons[i].angleOffset, offset, 0.1f);
+  float t = 0.1f;
+
+  if (bossBall.weapons[i].type == BOSS_BALL_WEAPON_LASER &&
+      bossBall.weapons[i].chargeLevel >= 1.0f) {
+    t = 0.03;
+  }
+
+  bossBall.weapons[i].angleOffset = Lerp(bossBall.weapons[i].angleOffset, offset, t);
 
   bossBallWeaponCalculateBulletOrigin(i, bossBall.weapons[i].angle + bossBall.weaponAngleOffset + bossBall.weapons[i].angleOffset);
 }
@@ -3477,7 +3708,16 @@ void bossBallUpdateDisconnectedWeapon(int i) {
   weaponFollowPlayer(i);
 
   float angle = angleBetweenPoints(bossBall.weapons[i].position, player.position);
-  bossBall.weapons[i].angle = Lerp(bossBall.weapons[i].angle, angle, 0.1f);
+
+  float t = 0.1f;
+
+  if (bossBall.weapons[i].type == BOSS_BALL_WEAPON_LASER &&
+      bossBall.weapons[i].chargeLevel >= 1.0f) {
+    t = 0.03;
+  }
+
+  bossBall.weapons[i].angle = Lerp(bossBall.weapons[i].angle, angle, t);
+
   bossBallWeaponCalculateBulletOrigin(i, bossBall.weapons[i].angle);
 }
 
@@ -3638,11 +3878,7 @@ void updateBossBall(void) {
   bossBallCheckCollisions(true);
   bossBallCheckDisconnectedWeaponCollisions();
 
-  if (bossBall.attackTimer <= 0.0f) {
-    bossBallAttack();
-  } else {
-    bossBall.attackTimer -= GetFrameTime();
-  }
+  bossBallAttack();
 }
 
 void updateAndRenderBossFight(void) {
@@ -4082,8 +4318,7 @@ void updateAndRenderIntroduction(void) {
         bossMarine.currentAttack = BOSS_MARINE_NOT_SHOOTING;
       } break;
       case BOSS_BALL: {
-        bossBall.attackTimer = 0.5f;
-       } break;
+      } break;
       }
     }
   } break;
