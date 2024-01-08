@@ -88,13 +88,24 @@ typedef enum {
   DIRECTION_RIGHT = 0b1000,
 } Direction;
 
-#define MAX_PLAYER_HEALTH 8
-
 #define PLAYER_HITBOX_RADIUS 24
 
 #define PLAYER_DASH_COOLDOWN 0.55f
 
 #define PLAYER_MOVEMENT_SPEED 6
+
+typedef enum {
+  PERK_RANDOM_SIZED_BULLETS = 0b0000000001,
+  PERK_MORE_SPREAD          = 0b0000000010,
+  PERK_HOMING               = 0b0000000100,
+  PERK_STRONG_DASH          = 0b0000001000,
+  PERK_DOUBLE_DAMAGE        = 0b0000010000,
+  PERK_LESS_HP_MORE_DAMAGE  = 0b0000100000,
+  PERK_SLOW_BUT_STEADY      = 0b0001000000,
+  PERK_FAST_BULLETS         = 0b0010000000,
+  PERK_DOUBLE_HP            = 0b0100000000,
+  PERK_GLASS_CANON          = 0b1000000000,
+} Perk;
 
 typedef struct {
   Vector2 position;
@@ -114,6 +125,8 @@ typedef struct {
 
   bool isInvincible;
   float iframeTimer;
+
+  Perk perks;
 } Player;
 
 typedef struct {
@@ -199,6 +212,7 @@ static Music bossBallMusic = {0};
 static Sound bossBallTurretSound = {0};
 static Sound bossBallLaserChargingSound = {0};
 static Sound bossBallRocketSound = {0};
+static Sound bossBallDeath = {0};
 
 static RenderTexture2D bossBallTarget = {0};
 static RenderTexture2D bossBallTargetScreen = {0};
@@ -207,17 +221,6 @@ static RenderTexture2D bossBallTargetScreen = {0};
 #define BOSS_BALL_MOVE_SPEED 5
 
 #define BOSS_BALL_WEAPONS 8
-
-typedef enum {
-  BOSS_BALL_SPAWN_DRONES,
-  BOSS_BALL_LASER_PRISON,
-  BOSS_BALL_FOLLOWING_LASER,
-  BOSS_BALL_SHOOTING,
-  BOSS_BALL_SINUS_SHOOTING,
-  BOSS_BALL_HOMING_BULLETS,
-  BOSS_BALL_ATTACK_COUNT,
-  BOSS_BALL_NO_ATTACK,
-} BossBallAttack;
 
 typedef enum {
   BOSS_BALL_WEAPON_TURRET,
@@ -321,6 +324,7 @@ static int starsDom = 0;
 
 static Shader dashTrailShader = {0};
 static int dashTrailShaderAlpha = {0};
+static int dashTrailShaderColor = {0};
 
 static Camera2D camera = {0};
 
@@ -516,6 +520,21 @@ typedef struct {
 #define PROJECTILES_MAX 1024
 
 static Projectile projectiles[PROJECTILES_MAX] = {0};
+
+#define MAX_PLAYER_HEALTH maxPlayerHealth()
+int maxPlayerHealth(void) {
+  int base = 8;
+
+  if (player.perks & PERK_GLASS_CANON) {
+    base /= 4;
+  }
+
+  if (player.perks & PERK_DOUBLE_HP) {
+    base *= 2;
+  }
+
+  return base;
+}
 
 #define MOUSE_SENSITIVITY 0.7f
 
@@ -1036,7 +1055,12 @@ void tryDashing(void) {
 
   float dashAngle = Vector2Angle(up, direction);
 
-  Vector2 dashDistance = Vector2Scale(up, PLAYER_DASH_DISTANCE);
+  float distance = PLAYER_DASH_DISTANCE;
+  if (player.perks & PERK_STRONG_DASH) {
+    distance *= 1.5;
+  }
+
+  Vector2 dashDistance = Vector2Scale(up, distance);
 
   player.dashCooldown = PLAYER_DASH_COOLDOWN;
   player.dashDelta = Vector2Rotate(dashDistance, dashAngle);
@@ -1063,8 +1087,48 @@ void tryFiringAShot(void) {
     return;
   }
 
-  int halfSpread = player.bulletSpread / 2;
+  int spread = player.bulletSpread;
+  if (player.perks & PERK_MORE_SPREAD) {
+    spread = 20;
+  }
+
+  int halfSpread = spread / 2;
   int a = GetRandomValue(-halfSpread, halfSpread);
+
+  int damage = PLAYER_PROJECTILE_BASE_DAMAGE;
+  float multX = 1.5f;
+  float multY = 3.0f;
+  if (player.perks & PERK_RANDOM_SIZED_BULLETS) {
+    multX = (float)GetRandomValue(10, 20) / 5.0f;
+    multY = (float)GetRandomValue(20, 30) / 5.0f;
+
+    float area = multX * multY;
+    damage = ceilf(area / 5.0f);
+  }
+
+  if (player.perks & PERK_DOUBLE_DAMAGE) {
+    damage *= 2;
+  }
+
+  if (player.perks & PERK_LESS_HP_MORE_DAMAGE) {
+    float hp = player.health / MAX_PLAYER_HEALTH;
+    hp = 1.0 - hp;
+    damage += damage * hp;
+  }
+
+  float speed = PLAYER_PROJECTILE_SPEED;
+  if (player.perks & PERK_SLOW_BUT_STEADY) {
+    damage *= 2;
+    speed /= 2;
+  }
+
+  if (player.perks & PERK_FAST_BULLETS) {
+    speed *= 2;
+  }
+
+  if (player.perks & PERK_GLASS_CANON) {
+    damage *= 5;
+  }
 
   *new_projectile = (Projectile) {
     .type = PROJECTILE_SQUARED,
@@ -1073,15 +1137,15 @@ void tryFiringAShot(void) {
     .isHurtfulForPlayer = false,
     .isHurtfulForBoss = true,
 
-    .damage = PLAYER_PROJECTILE_BASE_DAMAGE,
+    .damage = damage,
 
     .origin = Vector2Add(player.position, Vector2Scale(lookingDirection, 35)),
     /* .radius = PLAYER_PROJECTILE_RADIUS, */
     .size = (Vector2) {
-      .x = PLAYER_PROJECTILE_RADIUS * 1.5,
-      .y = PLAYER_PROJECTILE_RADIUS * 3,
+      .x = PLAYER_PROJECTILE_RADIUS * multX,
+      .y = PLAYER_PROJECTILE_RADIUS * multY,
     },
-    .delta = Vector2Rotate(Vector2Scale(lookingDirection, PLAYER_PROJECTILE_SPEED),
+    .delta = Vector2Rotate(Vector2Scale(lookingDirection, speed),
                            a * DEG2RAD),
     .angle = playerLookingAngle() + (float)a,
 
@@ -1091,7 +1155,12 @@ void tryFiringAShot(void) {
     .canBounce = false,
   };
 
-  player.fireCooldown = PLAYER_FIRE_COOLDOWN;
+  float cooldown = PLAYER_FIRE_COOLDOWN;
+  if (player.perks & PERK_FAST_BULLETS) {
+    cooldown /= 2;
+  }
+
+  player.fireCooldown = cooldown;
 
   PlaySound(playerShot);
 }
@@ -1634,6 +1703,17 @@ void renderPlayer(void) {
 }
 
 void renderDashTrails(void) {
+  Vector4 color = ColorNormalize(SKYBLUE);
+
+  if (player.perks & PERK_STRONG_DASH) {
+    color = ColorNormalize(RED);
+  }
+
+  SetShaderValue(dashTrailShader,
+                 dashTrailShaderColor,
+                 &color,
+                 SHADER_UNIFORM_VEC4);
+
   for (int i = 0; i < PLAYER_DASH_TRAILS_MAX; i++) {
     if (dashTrails[i].alpha <= 0) {
       continue;
@@ -2672,6 +2752,25 @@ void updateProjectiles(void) {
       projectiles[i].angle = atan2(projectiles[i].delta.y, projectiles[i].delta.x) * RAD2DEG + 90;
     }
 
+    if ((player.perks & PERK_HOMING) &&
+        projectiles[i].isHurtfulForBoss) {
+      Vector2 bossPosition;
+
+      switch (currentBoss) {
+      case BOSS_MARINE: bossPosition = bossMarine.position; break;
+      case BOSS_BALL: bossPosition = bossBall.position; break;
+      }
+
+      Vector2 direction = Vector2Normalize(Vector2Subtract(bossPosition, projectiles[i].origin));
+      float speed = fabsf(Vector2Length(projectiles[i].delta));
+
+      Vector2 delta = Vector2Normalize(projectiles[i].delta);
+      delta = Vector2Lerp(delta, direction, 0.1f);
+
+      projectiles[i].delta = Vector2Scale(delta, speed);
+      projectiles[i].angle = atan2(projectiles[i].delta.y, projectiles[i].delta.x) * RAD2DEG + 90;
+    }
+
     projectiles[i].origin = Vector2Add(projectiles[i].delta, projectiles[i].origin);
   }
 }
@@ -2889,8 +2988,11 @@ void bossBallCheckCollisions(bool sendAsteroidsFlying) {
 
 void bossBallUpdateWeapons(void);
 
+static float deadBallTimer = 0;
+
 void initBossBall(void) {
   memset(&bossBall, 0, sizeof(bossBall));
+  deadBallTimer = 2.0f;
 
   bossBall = (BossBall) {
     .position = {
@@ -3080,6 +3182,8 @@ void initSoundEffects(void) {
   SetSoundVolume(bossBallLaserChargingSound, 0.5);
 
   bossBallRocketSound = LoadSound("resources/rocket.wav");
+
+  bossBallDeath = LoadSound("resources/explosion.wav");
 }
 
 void initShaders(void) {
@@ -3168,12 +3272,7 @@ void initShaders(void) {
 
   {
     dashTrailShader = LoadShader(NULL, TextFormat("resources/dash-trail-%d.frag", GLSL_VERSION));
-    Vector4 color = ColorNormalize(SKYBLUE);
-    SetShaderValue(dashTrailShader,
-                   GetShaderLocation(dashTrailShader, "trailColor"),
-                   &color,
-                   SHADER_UNIFORM_VEC4);
-
+    dashTrailShaderColor = GetShaderLocation(dashTrailShader, "trailColor");
     dashTrailShaderAlpha = GetShaderLocation(dashTrailShader, "alpha");
   }
 
@@ -4450,7 +4549,52 @@ void updateAndRenderTutorial(void) {
   } EndDrawing();
 }
 
-void updateDeadBoss(void) {
+static Perk firstNewPerk;
+static Perk secondNewPerk;
+
+void playerGiveOneRandomPerk(void) {
+  if (player.perks == 0b1111111111) {
+    return;
+  }
+
+  static Perk perks[] = {
+    PERK_RANDOM_SIZED_BULLETS,
+    PERK_MORE_SPREAD,
+    PERK_HOMING,
+    PERK_STRONG_DASH,
+    PERK_DOUBLE_DAMAGE,
+    PERK_LESS_HP_MORE_DAMAGE,
+    PERK_SLOW_BUT_STEADY,
+    PERK_FAST_BULLETS,
+    PERK_DOUBLE_HP,
+    PERK_GLASS_CANON,
+  };
+  int perks_len = sizeof(perks) / sizeof(perks[0]);
+
+  Perk newPerk = 0;
+  do {
+    int i = GetRandomValue(0, perks_len - 1);
+    newPerk = perks[i];
+  } while (player.perks & newPerk);
+
+  player.perks |= newPerk;
+
+  if (firstNewPerk > 0) {
+    secondNewPerk = newPerk;
+  } else {
+    firstNewPerk = newPerk;
+  }
+}
+
+void playerGiveTwoRandomPerks(void) {
+  firstNewPerk = 0;
+  secondNewPerk = 0;
+
+  playerGiveOneRandomPerk();
+  playerGiveOneRandomPerk();
+}
+
+void updateDeadMarine(void) {
   if (Vector2Distance(camera.target, bossMarine.position) > 5) {
     return;
   }
@@ -4471,6 +4615,36 @@ void updateDeadBoss(void) {
     PlaySound(bossMarineShotgunSound);
     ResumeMusicStream(bossMarineMusic);
     gameState = GAME_STATS;
+
+    firstNewPerk = 0;
+    secondNewPerk = 0;
+    playerGiveTwoRandomPerks();
+  }
+}
+
+void updateDeadBall(void) {
+  if (deadBallTimer > 0.0f) {
+    return;
+  }
+
+  PlaySound(bossBallDeath);
+  ResumeMusicStream(bossBallMusic);
+  gameState = GAME_STATS;
+
+  firstNewPerk = 0;
+  secondNewPerk = 0;
+  playerGiveTwoRandomPerks();
+}
+
+void updateDeadBoss(void) {
+  switch (currentBoss) {
+  case BOSS_MARINE: {
+    updateDeadMarine();
+  } break;
+  case BOSS_BALL: {
+    deadBallTimer -= GetFrameTime();
+    updateDeadBall();
+  } break;
   }
 }
 
@@ -4517,6 +4691,40 @@ void updateAndRenderPlayerDead(void) {
   renderFinal();
 }
 
+Rectangle perkRect(Perk perk) {
+  switch (perk) {
+  case PERK_RANDOM_SIZED_BULLETS: return (Rectangle) {16, 128, 19, 25};
+  case PERK_MORE_SPREAD: return (Rectangle) {61, 128, 19, 25};
+  case PERK_HOMING: return (Rectangle) {85, 128, 19, 25};
+  case PERK_STRONG_DASH: return (Rectangle) {107, 128, 19, 25};
+  case PERK_DOUBLE_DAMAGE: return (Rectangle) {128, 128, 19, 25};
+  case PERK_LESS_HP_MORE_DAMAGE: return (Rectangle) {151, 128, 19, 25};
+  case PERK_SLOW_BUT_STEADY: return (Rectangle) {172, 128, 19, 25};
+  case PERK_FAST_BULLETS: return (Rectangle) {193, 128, 19, 25};
+  case PERK_DOUBLE_HP: return (Rectangle) {215, 128, 19, 25};
+  case PERK_GLASS_CANON: return (Rectangle) {38, 128, 19, 25};
+  };
+
+  assert(false);
+}
+
+char *perkName(Perk perk) {
+  switch (perk) {
+  case PERK_RANDOM_SIZED_BULLETS: return "Diverse bullets";
+  case PERK_MORE_SPREAD: return "SPREEEEAD";
+  case PERK_HOMING: return "Homing bullets";
+  case PERK_STRONG_DASH: return "Forg";
+  case PERK_DOUBLE_DAMAGE: return "Strong bullets";
+  case PERK_LESS_HP_MORE_DAMAGE: return "Last hope";
+  case PERK_SLOW_BUT_STEADY: return "Slow but steady";
+  case PERK_FAST_BULLETS: return "Rapid Fire";
+  case PERK_DOUBLE_HP: return "More health";
+  case PERK_GLASS_CANON: return "Glass cannon";
+  };
+
+  assert(false);
+}
+
 void updateAndRenderStats(void) {
   if (GetKeyPressed() != KEY_NULL ||
       IsMouseButtonPressed(MOUSE_BUTTON_LEFT) ||
@@ -4534,6 +4742,7 @@ void updateAndRenderStats(void) {
       gameState = GAME_BOSS_INTRODUCTION;
       currentBoss = BOSS_BALL;
       introductionStage = BOSS_INTRODUCTION_BEGINNING;
+      player.health = MAX_PLAYER_HEALTH;
     } break;
     case BOSS_BALL: {
       gameState = GAME_MAIN_MENU;
@@ -4558,12 +4767,12 @@ void updateAndRenderStats(void) {
     const char *time_stat = TextFormat("TIME: %.2f", playerStats.time);
     Vector2 pos = {
       .x = ((float)GetScreenWidth() / 2.0f),
-      .y = ((float)GetScreenHeight() / 2.0f),
+      .y = ((float)GetScreenHeight() / 6.0f),
     };
 
     Vector2 size = MeasureTextEx(f, time_stat, fontSize, spacing);
 
-    pos.y -= size.y / 1.5;
+    pos.y -= size.y;
 
     DrawTextPro(f, time_stat, pos, Vector2Scale(size, 0.5f), 0, fontSize, spacing, WHITE);
     pos.y += size.y;
@@ -4573,8 +4782,41 @@ void updateAndRenderStats(void) {
 
     DrawTextPro(f, kills_stat, pos, Vector2Scale(size, 0.5f), 0, fontSize, spacing, WHITE);
 
+    if (currentBoss == BOSS_MARINE) {
+      float perkMul = mul * 3;
+      DrawTexturePro(sprites,
+                     perkRect(firstNewPerk),
+                     (Rectangle) {
+                       .x = (float)GetScreenWidth() / 3.0f,
+                       .y = (float)GetScreenHeight() / 2.0f,
+                       .width = perkRect(firstNewPerk).width * perkMul,
+                       .height = perkRect(firstNewPerk).height * perkMul,
+                     },
+                     (Vector2) {
+                       .x = perkRect(firstNewPerk).width * perkMul * 0.5f,
+                       .y = perkRect(firstNewPerk).height * perkMul * 0.5f,
+                     },
+                     0,
+                     WHITE);
+
+      DrawTexturePro(sprites,
+                     perkRect(secondNewPerk),
+                     (Rectangle) {
+                       .x = (float)GetScreenWidth() / 3.0f * 2,
+                       .y = (float)GetScreenHeight() / 2.0f,
+                       .width = perkRect(firstNewPerk).width * perkMul,
+                       .height = perkRect(firstNewPerk).height * perkMul,
+                     },
+                     (Vector2) {
+                       .x = perkRect(firstNewPerk).width * perkMul * 0.5f,
+                       .y = perkRect(firstNewPerk).height * perkMul * 0.5f,
+                     },
+                     0,
+                     WHITE);
+    }
+
     const char *cont = "PRESS ANY KEY TO CONTINUE";
-    pos.y += size.y;
+    pos.y = (float)GetScreenHeight() - ((float)GetScreenHeight() / 6.0f);
 
     size = MeasureTextEx(f, cont, fontSize, spacing);
     DrawTextPro(f, cont, pos, Vector2Scale(size, 0.5f), 0, fontSize, spacing, WHITE);
@@ -4639,7 +4881,7 @@ int main(void) {
   initBossMarine();
   initBossBall();
 
-  currentBoss = BOSS_BALL;
+  currentBoss = BOSS_MARINE;
   seenTutorial = false;
 
   /* fix fragTexCoord for rectangles */
