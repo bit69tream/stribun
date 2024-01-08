@@ -4361,8 +4361,28 @@ void renderMainMenu(void) {
 }
 
 void updateMainMenuMusic(void) {
-  if (!IsMusicStreamPlaying(mainMenuMusic)) {
-    PlayMusicStream(mainMenuMusic);
+  bool pauseMusic = false;
+
+#ifdef PLATFORM_DESKTOP
+
+  if (!IsWindowFocused() || IsWindowHidden()) {
+    pauseMusic = true;
+  }
+
+#endif
+
+  if (!IsCursorHidden()) {
+    pauseMusic = true;
+  }
+
+  if (pauseMusic) {
+    PauseMusicStream(mainMenuMusic);
+  } else {
+    ResumeMusicStream(mainMenuMusic);
+
+    if (!IsMusicStreamPlaying(mainMenuMusic)) {
+      PlayMusicStream(mainMenuMusic);
+    }
   }
 
   UpdateMusicStream(mainMenuMusic);
