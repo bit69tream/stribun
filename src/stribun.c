@@ -35,6 +35,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+#include <assert.h>
 
 #define SUPPORT_LOG_INFO
 #if defined(SUPPORT_LOG_INFO)
@@ -188,6 +189,21 @@ BossMarine bossMarine = {0};
 #define BOSS_BALL_NAME "Rigor Mortis"
 #define BOSS_BALL_MAX_HEALTH 2048
 
+static Shader bossBallLightingShader = {0};
+static Model bossBallModel = {0};
+static Texture2D bossBallTexture = {0};
+static Light bossBallLight = {0};
+static Camera bossBallCamera = {0};
+static Music bossBallMusic = {0};
+
+static RenderTexture2D bossBallTarget = {0};
+static RenderTexture2D bossBallTargetScreen = {0};
+
+#define BOSS_BALL_HITBOX_RADIUS 180
+#define BOSS_BALL_MOVE_SPEED 5
+
+#define BOSS_BALL_WEAPONS 8
+
 typedef enum {
   BOSS_BALL_SPAWN_DRONES,
   BOSS_BALL_LASER_PRISON,
@@ -199,33 +215,61 @@ typedef enum {
   BOSS_BALL_NO_ATTACK,
 } BossBallAttack;
 
-#define BOSS_BALL_WEAPON_COUNT 6
+typedef enum {
+  BOSS_BALL_WEAPON_TURRET,
+  BOSS_BALL_WEAPON_LASER,
+  BOSS_BALL_WEAPON_ROCKET_LAUNCHER,
+  BOSS_BALL_WEAPON_COUNT,
+  BOSS_BALL_WEAPON_NONE,
+} BossBallWeaponType;
 
-static Shader bossBallLightingShader = {0};
-static Model bossBallModel = {0};
-static Texture2D bossBallTexture = {0};
-static Light bossBallLight = {0};
-static Camera bossBallCamera = {0};
-static Music bossBallMusic = {0};
+Rectangle bossBallWeaponRects[BOSS_BALL_WEAPON_COUNT] = {
+  [BOSS_BALL_WEAPON_TURRET] = {288, 19, 43, 47},
+  [BOSS_BALL_WEAPON_LASER] = {395, 4, 25, 41},
+  [BOSS_BALL_WEAPON_ROCKET_LAUNCHER] = {343, 7, 43, 61},
+};
 
-static RenderTexture2D bossBallTarget = {0};
-static RenderTexture2D bossBallTargetScreen = {0};
+float bossBallWeaponHitboxRadiuses[BOSS_BALL_WEAPON_COUNT] = {
+  [BOSS_BALL_WEAPON_TURRET] = 70.0f,
+  [BOSS_BALL_WEAPON_LASER] = 50.0f,
+  [BOSS_BALL_WEAPON_ROCKET_LAUNCHER] = 60.0f,
+};
 
-#define BOSS_BALL_HITBOX_RADIUS 90
+typedef struct {
+  BossBallWeaponType type;
+
+  bool seesPlayer;
+
+  float fireCooldown;
+
+  bool isDisconnected;
+
+  Vector2 position;
+  float angle;
+
+  float angleOffset;
+} BossBallWeapon;
 
 typedef struct {
   Vector2 position;
   int health;
 
-  float attackTimer;
-
-  BossBallAttack currentAttack;
-  Vector2 delta;
   Vector2 targetPosition;
-  bool isGoingSomewhere;
+  Vector2 startingPosition;
+  float standingStilTimer;
 
   Vector3 rotationAxis;
   float angle;
+
+  float weaponAngleOffset;
+
+  float weapongAngleTargetOffset;
+
+  float attackTimer;
+
+  float playerInsideDeadZoneTimer;
+
+  BossBallWeapon weapons[BOSS_BALL_WEAPONS];
 } BossBall;
 
 static BossBall bossBall = {0};
@@ -1754,6 +1798,60 @@ void renderBossBall(void) {
   } EndShaderMode();
 }
 
+void renderBossBallDisconnectedWeapons(void) {
+  for (int i = 0; i < BOSS_BALL_WEAPONS; i++) {
+    if (!bossBall.weapons[i].isDisconnected) {
+      continue;
+    }
+
+    Rectangle r = bossBallWeaponRects[bossBall.weapons[i].type];
+
+    DrawTexturePro(sprites,
+                   r,
+                   (Rectangle) {
+                     .x = bossBall.weapons[i].position.x,
+                     .y = bossBall.weapons[i].position.y,
+                     .width = r.width * SPRITES_SCALE,
+                     .height = r.height * SPRITES_SCALE,
+                   },
+                   (Vector2) {
+                     .x = (r.width * SPRITES_SCALE) * 0.5f,
+                     .y = (r.height * SPRITES_SCALE) * 0.5f,
+                   },
+                   bossBall.weapons[i].angle +
+                   bossBall.weapons[i].angleOffset +
+                   bossBall.weaponAngleOffset,
+                   WHITE);
+  }
+}
+
+void renderBossBallConnectedWeapons(void) {
+  for (int i = 0; i < BOSS_BALL_WEAPONS; i++) {
+    if (bossBall.weapons[i].isDisconnected) {
+      continue;
+    }
+
+    Rectangle r = bossBallWeaponRects[bossBall.weapons[i].type];
+
+    DrawTexturePro(sprites,
+                   r,
+                   (Rectangle) {
+                     .x = bossBall.weapons[i].position.x,
+                     .y = bossBall.weapons[i].position.y,
+                     .width = r.width * SPRITES_SCALE,
+                     .height = r.height * SPRITES_SCALE,
+                   },
+                   (Vector2) {
+                     .x = (r.width * SPRITES_SCALE) * 0.5f,
+                     .y = (r.height * SPRITES_SCALE) * 0.5f,
+                   },
+                   bossBall.weapons[i].angle +
+                   bossBall.weapons[i].angleOffset +
+                   bossBall.weaponAngleOffset,
+                   WHITE);
+  }
+}
+
 void prerenderBossBall(void) {
   bossBallUpdateShader();
 
@@ -1773,7 +1871,7 @@ void prerenderBossBall(void) {
     ClearBackground(BLANK);
 
     BeginMode3D(bossBallCamera); {
-      DrawModelEx(bossBallModel, c.point, bossBall.rotationAxis, bossBall.angle, Vector3Scale(Vector3One(), 1), WHITE);
+      DrawModelEx(bossBallModel, c.point, bossBall.rotationAxis, bossBall.angle, Vector3Scale(Vector3One(), 2), WHITE);
     } EndMode3D();
   } EndTextureMode();
 }
@@ -1860,9 +1958,17 @@ void renderPhase1(void) {
 
     renderBoss();
 
+    if (currentBoss == BOSS_BALL) {
+      renderBossBallDisconnectedWeapons();
+    }
+
     renderThrusterTrails();
     renderDashTrails();
     renderPlayer();
+
+    if (currentBoss == BOSS_BALL) {
+      renderBossBallConnectedWeapons();
+    }
 
     renderProjectiles();
 
@@ -2234,12 +2340,6 @@ void checkRegularProjectileCollision(int i) {
       player.health -= projectiles[i].damage;
       player.iframeTimer = 0.3f;
     }
-
-    if (player.health == 0) {
-      gameState = GAME_PLAYER_DEAD;
-      PauseMusicStream(bossMarineMusic);
-      PlaySound(playerDeathSound);
-    }
     return;
   }
 
@@ -2599,6 +2699,27 @@ void bossBallCheckCollisions(bool sendAsteroidsFlying) {
     }
   }
 
+  for (int i = 0; i < BOSS_BALL_WEAPONS; i++) {
+    if (!bossBall.weapons[i].isDisconnected) {
+      continue;
+    }
+
+    float distance = Vector2Distance(bossBall.weapons[i].position,
+                                     bossBall.position);
+    float radiusSum =
+      (bossBallWeaponHitboxRadiuses[bossBall.weapons[i].type] +
+       BOSS_BALL_HITBOX_RADIUS);
+
+    if (distance < radiusSum) {
+      float angle = angleBetweenPoints(bossBall.position, bossBall.weapons[i].position) * DEG2RAD;
+
+      float offsetDistance = distance - radiusSum;
+      Vector2 offset = Vector2Rotate((Vector2) {0, offsetDistance}, angle);
+
+      bossBall.weapons[i].position = Vector2Add(bossBall.weapons[i].position, offset);
+    }
+  }
+
   float distance = Vector2Distance(player.position, bossBall.position);
   float radiusSum =
     (PLAYER_HITBOX_RADIUS + BOSS_BALL_HITBOX_RADIUS);
@@ -2610,8 +2731,17 @@ void bossBallCheckCollisions(bool sendAsteroidsFlying) {
     Vector2 asteroidOffset = Vector2Rotate((Vector2) {0, offsetDistance}, angle);
 
     player.position = Vector2Add(player.position, asteroidOffset);
+
+    if (player.iframeTimer <= 0.0f) {
+      PlaySound(hit);
+
+      player.health -= 2;
+      player.iframeTimer = 0.4f;
+    }
   }
 }
+
+void bossBallUpdateWeapons(void);
 
 void initBossBall(void) {
   memset(&bossBall, 0, sizeof(bossBall));
@@ -2621,12 +2751,48 @@ void initBossBall(void) {
       .x = (float)LEVEL_WIDTH / 2,
       .y = (float)LEVEL_HEIGHT / 2,
     },
+    .standingStilTimer = 0.5f,
     .health = BOSS_BALL_MAX_HEALTH,
-    .currentAttack = BOSS_BALL_NO_ATTACK,
-    .isGoingSomewhere = false,
   };
 
+  BossBallWeaponType types[] = {
+    BOSS_BALL_WEAPON_TURRET,
+    BOSS_BALL_WEAPON_TURRET,
+    BOSS_BALL_WEAPON_TURRET,
+    BOSS_BALL_WEAPON_TURRET,
+
+    BOSS_BALL_WEAPON_LASER,
+    BOSS_BALL_WEAPON_LASER,
+
+    BOSS_BALL_WEAPON_ROCKET_LAUNCHER,
+    BOSS_BALL_WEAPON_ROCKET_LAUNCHER,
+  };
+
+  static_assert((sizeof(types) / sizeof(types[0])) == BOSS_BALL_WEAPONS);
+
+  int i = 0;
+  while (i < BOSS_BALL_WEAPONS) {
+    int index = GetRandomValue(0, BOSS_BALL_WEAPONS - 1);
+    if (types[index] == BOSS_BALL_WEAPON_NONE) {
+      continue;
+    }
+
+    bossBall.weapons[i] = (BossBallWeapon) {
+      .type = types[index],
+      .angle = 45 * i,
+      .fireCooldown = (float)GetRandomValue(1, 15) / 10.0f,
+      .isDisconnected = false,
+    };
+
+    types[index] = BOSS_BALL_WEAPON_NONE;
+    i++;
+  }
+
+  bossBall.targetPosition = bossBall.position;
+  bossBall.startingPosition = bossBall.position;
+
   bossBallCheckCollisions(false);
+  bossBallUpdateWeapons();
 }
 
 void initBossMarine(void) {
@@ -3093,6 +3259,208 @@ void updateAndRenderPauseScreen(void) {
   previousMouseLocation = screenMouseLocation;
 }
 
+void bossBallRoll(void) {
+  if (bossBall.standingStilTimer > 0.0f) {
+    bossBall.standingStilTimer -= GetFrameTime();
+    return;
+  }
+
+  float distance = Vector2Distance(bossBall.targetPosition, bossBall.position);
+
+  if (distance <= ((float)BOSS_BALL_MOVE_SPEED / 2.0f)) {
+    bool toMoveOrNotToMove = (bool)GetRandomValue(0, 1);
+
+    if (toMoveOrNotToMove) {
+      bossBall.targetPosition.x = (float)GetRandomValue(BOSS_BALL_HITBOX_RADIUS, LEVEL_WIDTH - BOSS_BALL_HITBOX_RADIUS);
+      bossBall.targetPosition.y = (float)GetRandomValue(BOSS_BALL_HITBOX_RADIUS, LEVEL_HEIGHT - BOSS_BALL_HITBOX_RADIUS);
+
+      bossBall.startingPosition = bossBall.position;
+
+      Vector2 dir = Vector2Normalize(Vector2Subtract(bossBall.targetPosition, bossBall.startingPosition));
+
+      bossBall.standingStilTimer = 0;
+      bossBall.angle = 1;
+      bossBall.rotationAxis = (Vector3) {roundf(dir.y), 0, -roundf(dir.x)};
+    } else {
+      bossBall.standingStilTimer = (float)GetRandomValue(1, 10) / 10.0f;
+      bossBall.rotationAxis = Vector3Zero();
+      bossBall.angle = 0;
+      bossBall.targetPosition = bossBall.position;
+      bossBall.startingPosition = bossBall.position;
+    }
+  } else {
+    Vector2 dir = Vector2Normalize(Vector2Subtract(bossBall.targetPosition, bossBall.startingPosition));
+    Vector2 delta = Vector2Scale(dir, BOSS_BALL_MOVE_SPEED);
+
+    bossBall.position = Vector2Add(bossBall.position, delta);
+
+    bossBall.position = Vector2Clamp(bossBall.position,
+                                     (Vector2) {
+                                       BOSS_BALL_HITBOX_RADIUS,
+                                       BOSS_BALL_HITBOX_RADIUS,
+                                     },
+                                     (Vector2) {
+                                       LEVEL_WIDTH - BOSS_BALL_HITBOX_RADIUS,
+                                       LEVEL_HEIGHT - BOSS_BALL_HITBOX_RADIUS,
+                                     });
+
+    float fullDistance = Vector2Distance(bossBall.targetPosition, bossBall.startingPosition);
+    float progress = Vector2Distance(bossBall.position, bossBall.startingPosition);
+
+    float angle = (progress / fullDistance) * 360;
+
+    if (isnormal(angle)) {
+      bossBall.angle = angle;
+    }
+  }
+}
+
+void bossBallAttack(void) {
+
+}
+
+#define BOSS_BALL_WEAPON_DISTANCE ((float)BOSS_BALL_HITBOX_RADIUS * 1.5f)
+
+void bossBallUpdateConnectedWeapon(int i) {
+  Vector2 up = {0, -BOSS_BALL_WEAPON_DISTANCE};
+
+  float angle =
+    bossBall.weapons[i].angle +
+    bossBall.weaponAngleOffset;
+
+  bossBall.weapons[i].position = Vector2Rotate(up, angle * DEG2RAD);
+  bossBall.weapons[i].position = Vector2Add(bossBall.position, bossBall.weapons[i].position);
+
+  float a = angleBetweenPoints(bossBall.weapons[i].position, player.position);
+  float offset = a - angle;
+
+  bossBall.weapons[i].seesPlayer = false;
+
+#define BOSS_BALL_MAX_WEAPON_ANGLE_OFFSET 45.0f
+  if (fabsf(offset) > BOSS_BALL_MAX_WEAPON_ANGLE_OFFSET) {
+    offset = 0;
+    bossBall.weapons[i].seesPlayer = true;
+  }
+
+  bossBall.weapons[i].angleOffset = Lerp(bossBall.weapons[i].angleOffset, offset, 0.1f);
+}
+
+void bossBallUpdateDisconnectedWeapon(int i) {
+  (void) i;
+}
+
+void bossBallUpdateWeapons(void) {
+  for (int i = 0; i < BOSS_BALL_WEAPONS; i++) {
+    if (!bossBall.weapons[i].isDisconnected) {
+      bossBallUpdateConnectedWeapon(i);
+    } else {
+      bossBallUpdateDisconnectedWeapon(i);
+    }
+  }
+}
+
+int compareWeaponsBasedOnDistanceToPlayer(const void *a,
+                                          const void *b) {
+  const int i = *(const int*)a;
+  const int j = *(const int*)b;
+
+  const float d1 = Vector2Distance(bossBall.weapons[i].position,
+                                   player.position);
+  const float d2 = Vector2Distance(bossBall.weapons[j].position,
+                                   player.position);
+
+  if (d1 < d2) {
+    return -1;
+  }
+
+  if (d1 > d2) {
+    return 1;
+  }
+
+  return 0;
+}
+
+void disconnectAWeaponIfThePlayerIsTooCloseForTooLong(void) {
+  if (Vector2Distance(player.position, bossBall.position) <= (BOSS_BALL_WEAPON_DISTANCE * 1.5f)) {
+    bossBall.playerInsideDeadZoneTimer += GetFrameTime();
+  } else {
+    bossBall.playerInsideDeadZoneTimer = Lerp(bossBall.playerInsideDeadZoneTimer,
+                                              0,
+                                              0.1f);
+  }
+
+  #define PLAYER_DEAD_ZONE_TIMER_LIMIT 2.0f
+  if (bossBall.playerInsideDeadZoneTimer >= PLAYER_DEAD_ZONE_TIMER_LIMIT) {
+    bossBall.playerInsideDeadZoneTimer = 0.0f;
+
+    int weaponIndexes[BOSS_BALL_WEAPONS] = {0};
+    for (int i = 0; i < BOSS_BALL_WEAPONS; i++) {
+      weaponIndexes[i] = i;
+    }
+
+    qsort(weaponIndexes,
+          BOSS_BALL_WEAPONS, sizeof(weaponIndexes[0]),
+          compareWeaponsBasedOnDistanceToPlayer);
+
+    for (int i = 0; i < BOSS_BALL_WEAPONS; i++) {
+      int j = weaponIndexes[i];
+
+      if (bossBall.weapons[j].isDisconnected) {
+        continue;
+      }
+
+      bossBall.weapons[j].isDisconnected = true;
+      break;
+    }
+  }
+}
+
+void bossBallCheckDisconnectedWeaponCollisions(void) {
+  for (int w = 0; w < BOSS_BALL_WEAPONS; w++) {
+    if (!bossBall.weapons[w].isDisconnected) {
+      continue;
+    }
+
+    for (int i = 0; i < asteroidsLen; i++) {
+      for (int j = 0; j < asteroids[i].sprite->boundingCirclesLen; j++) {
+        Vector2 pos =
+          Vector2Add(asteroids[i].processedBoundingCircles[j].position,
+                     asteroids[i].position);
+
+        float distance = Vector2Distance(pos, bossBall.weapons[w].position);
+        float radiusSum =
+          (asteroids[i].processedBoundingCircles[j].radius +
+           bossBallWeaponHitboxRadiuses[bossBall.weapons[w].type]);
+
+        if (distance < radiusSum) {
+          float angle = angleBetweenPoints(bossBall.weapons[w].position, pos);
+
+          float offsetDistance = distance - radiusSum;
+          Vector2 offset = Vector2Rotate((Vector2) {0, offsetDistance}, angle * DEG2RAD);
+
+          asteroids[i].position = Vector2Add(asteroids[i].position, offset);
+          asteroids[i].delta = Vector2Add(asteroids[i].delta, Vector2Scale(offset, 0.1f));
+        }
+      }
+    }
+
+
+    float distance = Vector2Distance(player.position, bossBall.weapons[w].position);
+    float radiusSum =
+      (PLAYER_HITBOX_RADIUS +
+       bossBallWeaponHitboxRadiuses[bossBall.weapons[w].type]);
+
+    if (distance < radiusSum) {
+      float angle = angleBetweenPoints(bossBall.weapons[w].position, player.position);
+
+      float offsetDistance = distance - radiusSum;
+      Vector2 offset = Vector2Rotate((Vector2) {0, offsetDistance}, angle * DEG2RAD);
+
+      player.position = Vector2Add(player.position, offset);
+    }
+  }
+}
+
 void updateBossBall(void) {
   if (bossBall.health <= 0) {
     PauseMusicStream(bossBallMusic);
@@ -3108,7 +3476,14 @@ void updateBossBall(void) {
     return;
   }
 
+  disconnectAWeaponIfThePlayerIsTooCloseForTooLong();
+  bossBallUpdateWeapons();
+
+  bossBallRoll();
   bossBallCheckCollisions(true);
+  bossBallCheckDisconnectedWeaponCollisions();
+
+  bossBallAttack();
 }
 
 void updateAndRenderBossFight(void) {
@@ -3121,6 +3496,15 @@ void updateAndRenderBossFight(void) {
     PauseMusicStream(bossMarineMusic);
     PauseMusicStream(bossBallMusic);
     updateAndRenderPauseScreen();
+    return;
+  }
+
+  if (player.health == 0) {
+    gameState = GAME_PLAYER_DEAD;
+
+    PauseMusicStream(bossMarineMusic);
+    PauseMusicStream(bossBallMusic);
+    PlaySound(playerDeathSound);
     return;
   }
 
@@ -3540,8 +3924,7 @@ void updateAndRenderIntroduction(void) {
       } break;
       case BOSS_BALL: {
         bossBall.attackTimer = 0.5f;
-        bossBall.currentAttack = BOSS_BALL_NO_ATTACK;
-      } break;
+       } break;
       }
     }
   } break;
