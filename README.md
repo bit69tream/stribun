@@ -19,7 +19,7 @@ A space shooter inspired by games like Enter The Gungeon, Furi and Nuclear Thron
  - bit69tream - Everything 😎
 
 ### Links
- - itch.io Release: $(itch.io Game Page)
+ - itch.io Release: https://bit69tream.itch.io/stribun
 
 ### Used Resources
 
