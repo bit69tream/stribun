@@ -2754,7 +2754,7 @@ void updateProjectiles(void) {
 
     if ((player.perks & PERK_HOMING) &&
         projectiles[i].isHurtfulForBoss) {
-      Vector2 bossPosition;
+      Vector2 bossPosition = Vector2Zero();
 
       switch (currentBoss) {
       case BOSS_MARINE: bossPosition = bossMarine.position; break;
