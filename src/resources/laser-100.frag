@@ -14,7 +14,7 @@ float pattern(vec2 muv, float t) {
 
 float wave(vec2 muv, float p) {
   float t = time * 2. + p * 2. * 3.14;
-  return pattern(vec2((muv.x + p) * -1, muv.y), t);
+  return pattern(vec2((muv.x + p) * -1., muv.y), t);
 }
 
 vec2 transformUv(vec2 muv) {
