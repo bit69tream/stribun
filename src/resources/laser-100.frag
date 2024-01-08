@@ -1,5 +1,7 @@
 #version 100
 
+precision mediump float;
+
 varying vec2 fragTexCoord;
 
 uniform float time;
@@ -21,7 +23,7 @@ vec2 transformUv(vec2 muv) {
   muv.y -= .5;
   muv.y /= t;
   muv.x *= resolution.x / resolution.y;
-  muv *= 10;
+  muv *= 10.;
   return muv;
 }
 
