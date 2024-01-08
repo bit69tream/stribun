@@ -28,6 +28,8 @@
     #define GLSL_VERSION            100
 #endif
 
+#define GAME_VERSION "v0.1"
+
 #define RLIGHTS_IMPLEMENTATION
 #include "rlights.h"
 
@@ -4178,6 +4180,41 @@ void renderFloatingShip(void) {
                  WHITE);
 }
 
+void renderGameVersion(void) {
+  char *text = GAME_VERSION;
+
+  float mul = camera.zoom * 2;
+
+  Font f = GetFontDefault();
+  float fontSize = 10 * mul;
+  float spacing = 1 * mul;
+  /* Vector2 size = MeasureTextEx(f, text, fontSize, spacing); */
+
+  Vector2 pos = (Vector2) {
+    .x = (float)10,
+    .y = (float)10,
+  };
+
+  DrawTextPro(f,
+              text,
+              Vector2Add(pos, (Vector2) {spacing, spacing}),
+              Vector2Zero(),
+              0,
+              fontSize,
+              spacing,
+              BLACK);
+
+  DrawTextPro(f,
+              text,
+              pos,
+              Vector2Zero(),
+              0,
+              fontSize,
+              spacing,
+              WHITE);
+
+}
+
 void renderMusicAuthor(void) {
   char* text = "Music: Drozerix - Stardust Jam";
 
@@ -4355,6 +4392,7 @@ void renderMainMenu(void) {
     renderFloatingShip();
     renderGameTitle();
     renderMusicAuthor();
+    renderGameVersion();
     renderButtons();
     renderMouseCursor();
   } EndDrawing();
