@@ -28,7 +28,7 @@
     #define GLSL_VERSION            100
 #endif
 
-#define GAME_VERSION "v0.1.1"
+#define GAME_VERSION "v0.1.2"
 
 #define RLIGHTS_IMPLEMENTATION
 #include "rlights.h"
@@ -133,6 +133,7 @@ typedef struct {
 
 typedef struct {
   float time;
+  float bossTime;
   int kills;
 } PlayerStats;
 
@@ -1138,6 +1139,14 @@ void tryFiringAShot(void) {
     damage *= 5;
   }
 
+  Color inside = (Color) {82, 85, 156, 255};
+  Color outside = (Color) {57, 60, 115, 255};
+
+  if (player.perks & PERK_HOMING) {
+    outside = inside;
+    inside = BLACK;
+  }
+
   *new_projectile = (Projectile) {
     .type = PROJECTILE_SQUARED,
     /* .type = PROJECTILE_REGULAR, */
@@ -1157,8 +1166,8 @@ void tryFiringAShot(void) {
                            a * DEG2RAD),
     .angle = playerLookingAngle() + (float)a,
 
-    .inside = DARKBLUE,
-    .outside = BLUE,
+    .inside = inside,
+    .outside = outside,
     .lifetime = 10,
     .canBounce = false,
   };
@@ -3164,7 +3173,7 @@ void initBossMarine(void) {
 
 void initMusic(void) {
   mainMenuMusic = LoadMusicStream("resources/drozerix_-_stardust_jam.mod");
-  SetMusicVolume(mainMenuMusic, 0.8);
+  SetMusicVolume(mainMenuMusic, 0.6);
 
   bossMarineMusic = LoadMusicStream("resources/once_is_not_enough.mod");
   SetMusicVolume(bossMarineMusic, 0.5);
@@ -4923,6 +4932,7 @@ void updateAndRenderStats(void) {
       currentBoss = BOSS_BALL;
       introductionStage = BOSS_INTRODUCTION_BEGINNING;
       player.health = MAX_PLAYER_HEALTH;
+      playerStats.bossTime = 0.0f;
     } break;
     case BOSS_BALL: {
       gameState = GAME_MAIN_MENU;
@@ -4944,15 +4954,21 @@ void updateAndRenderStats(void) {
   BeginDrawing(); {
     ClearBackground(BLACK);
 
-    const char *time_stat = TextFormat("TIME: %.2f", playerStats.time);
+    const char *boss_time_stat = TextFormat("BOSS TIME: %.2f", playerStats.bossTime);
     Vector2 pos = {
       .x = ((float)GetScreenWidth() / 2.0f),
-      .y = ((float)GetScreenHeight() / 6.0f),
+      .y = ((float)GetScreenHeight() / 5.0f),
     };
-
-    Vector2 size = MeasureTextEx(f, time_stat, fontSize, spacing);
+    Vector2 size = MeasureTextEx(f, boss_time_stat, fontSize, spacing);
 
     pos.y -= size.y;
+
+    DrawTextPro(f, boss_time_stat, pos, Vector2Scale(size, 0.5f), 0, fontSize, spacing, WHITE);
+    pos.y += size.y;
+
+    const char *time_stat = TextFormat("OVERALL TIME: %.2f", playerStats.time);
+
+    size = MeasureTextEx(f, time_stat, fontSize, spacing);
 
     DrawTextPro(f, time_stat, pos, Vector2Scale(size, 0.5f), 0, fontSize, spacing, WHITE);
     pos.y += size.y;
@@ -5038,6 +5054,7 @@ void UpdateDrawFrame(void) {
   case GAME_BOSS:
     updateAndRenderBossFight();
     playerStats.time += GetFrameTime();
+    playerStats.bossTime += GetFrameTime();
     break;
   case GAME_BOSS_DEAD: {
     updateAndRenderBossDead();
