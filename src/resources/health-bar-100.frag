@@ -12,6 +12,9 @@ uniform vec4 colDiffuse;
 uniform vec4 goodColor;
 uniform vec4 badColor;
 
+uniform float healTimer;
+uniform vec4 healColor;
+
 vec3 rgb2hsv(vec3 c) {
   vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
   vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
@@ -49,9 +52,14 @@ void main() {
   badColorAdjusted.z = v;
   badColorAdjusted = hsv2rgb(badColorAdjusted);
 
+
+  vec4 color = vec4(0.);
+
   if (fragTexCoord.y > health) {
-    gl_FragColor = vec4(badColorAdjusted, 1.);
+    color = vec4(badColorAdjusted, 1.);
   } else {
-    gl_FragColor = vec4(goodColorAdjusted, 1.);
+    color = vec4(goodColorAdjusted, 1.);
   }
+
+  gl_FragColor = color + (healColor * healTimer);
 }

@@ -97,16 +97,18 @@ typedef enum {
 #define PLAYER_MOVEMENT_SPEED 6
 
 typedef enum {
-  PERK_RANDOM_SIZED_BULLETS = 0b0000000001,
-  PERK_MORE_SPREAD          = 0b0000000010,
-  PERK_HOMING               = 0b0000000100,
-  PERK_STRONG_DASH          = 0b0000001000,
-  PERK_DOUBLE_DAMAGE        = 0b0000010000,
-  PERK_LESS_HP_MORE_DAMAGE  = 0b0000100000,
-  PERK_SLOW_BUT_STEADY      = 0b0001000000,
-  PERK_FAST_BULLETS         = 0b0010000000,
-  PERK_DOUBLE_HP            = 0b0100000000,
-  PERK_GLASS_CANON          = 0b1000000000,
+  PERK_RANDOM_SIZED_BULLETS = 0b000000000001,
+  PERK_MORE_SPREAD          = 0b000000000010,
+  PERK_HOMING               = 0b000000000100,
+  PERK_STRONG_DASH          = 0b000000001000,
+  PERK_DOUBLE_DAMAGE        = 0b000000010000,
+  PERK_LESS_HP_MORE_DAMAGE  = 0b000000100000,
+  PERK_SLOW_BUT_STEADY      = 0b000001000000,
+  PERK_FAST_BULLETS         = 0b000010000000,
+  PERK_DOUBLE_HP            = 0b000100000000,
+  PERK_GLASS_CANON          = 0b001000000000,
+  PERK_VAMPIRISM            = 0b010000000000,
+  PERK_OMINOUS_AURA         = 0b100000000000,
 } Perk;
 
 typedef struct {
@@ -129,6 +131,8 @@ typedef struct {
   float iframeTimer;
 
   Perk perks;
+  int healthStolen;
+  float healTimer;
 } Player;
 
 typedef struct {
@@ -384,6 +388,7 @@ static Texture2D playerHealthMaskTexture = {0};
 
 static Shader playerHealthBarShader = {0};
 static int playerHealthBarHealth = {0};
+static int playerHealthBarHealTimer = {0};
 
 static Shader pixelationShader = {0};
 static int pixelationShaderPixelSize = {0};
@@ -480,6 +485,7 @@ static Player player = {0};
 static float time = 0;
 
 static Sound playerDeathSound = {0};
+static Sound playerHealSound = {0};
 
 static Sound dashSoundEffect = {0};
 static Sound playerShot = {0};
@@ -712,6 +718,31 @@ float playerLookingAngle(void) {
   return angle;
 }
 
+void bossStealHealth(int bossHealth, int bossMaxHealth) {
+  if ((player.perks & PERK_VAMPIRISM) == 0) {
+    return;
+  }
+
+  int maxHealthToSteal = (MAX_PLAYER_HEALTH / 2);
+  int bossHealthChunk = bossMaxHealth / maxHealthToSteal;
+  int currentAmountOfChunks = bossHealth / bossHealthChunk;
+
+  if ((currentAmountOfChunks + player.healthStolen) < maxHealthToSteal) {
+    player.health = (int)Clamp(player.health + 1, 0, MAX_PLAYER_HEALTH);
+    player.healthStolen += 1;
+    player.healTimer = 1.0f;
+    PlaySound(playerHealSound);
+  }
+}
+
+void bossMarineStealHealth(void) {
+  bossStealHealth(bossMarine.health, BOSS_MARINE_MAX_HEALTH);
+}
+
+void bossBallStealHealth(void) {
+  bossStealHealth(bossBall.health, BOSS_BALL_MAX_HEALTH);
+}
+
 void bossMarineCheckCollisions(bool sendAsteroidsFlying) {
   for (int i = 0; i < BOSS_MARINE_BOUNDING_CIRCLES; i++) {
     Vector2 bcPos = Vector2Add(bossMarine.processedBoundingCircles[i].position,
@@ -736,6 +767,7 @@ void bossMarineCheckCollisions(bool sendAsteroidsFlying) {
             bossMarine.health = (int)Clamp(bossMarine.health - (damageMultiplier * ASTEROID_BASE_DAMAGE),
                                            0.0f,
                                            BOSS_MARINE_MAX_HEALTH);
+            bossMarineStealHealth();
             asteroids[ai].launchedByPlayer = false;
           }
 
@@ -1081,7 +1113,7 @@ void tryDashing(void) {
 #define PLAYER_FIRE_COOLDOWN 0.15f
 #define PLAYER_PROJECTILE_RADIUS 9
 #define PLAYER_PROJECTILE_SPEED 30.0f
-#define PLAYER_PROJECTILE_BASE_DAMAGE 4
+#define PLAYER_PROJECTILE_BASE_DAMAGE 40
 
 void tryFiringAShot(void) {
   if (!IsMouseButtonDown(MOUSE_BUTTON_LEFT) ||
@@ -1620,6 +1652,7 @@ ThrusterTrail *pushThrusterTrail() {
 
 static Shader dashResetShader = {0};
 static int dashResetShaderAlpha = 0;
+static int dashResetShaderColor = 0;
 
 void renderPlayerTexture(void) {
   int thrusters = whichThrustersToUse();
@@ -1661,13 +1694,17 @@ void renderPlayerTexture(void) {
                    &health,
                    SHADER_UNIFORM_FLOAT);
 
+    SetShaderValue(playerHealthBarShader,
+                   playerHealthBarHealTimer,
+                   &player.healTimer,
+                   SHADER_UNIFORM_FLOAT);
+
     BeginShaderMode(playerHealthBarShader); {
       DrawTexture(playerTexture1.texture,
                   0, 0,
                   WHITE);
     }; EndShaderMode();
   }; EndTextureMode();
-
 
   BeginTextureMode(playerTexture); {
     ClearBackground(BLANK);
@@ -2627,6 +2664,7 @@ void checkRegularProjectileCollision(int i) {
       if (CheckCollisionCircles(proj, radius, pos, r)) {
         projectiles[i].willBeDestroyed = true;
         bossMarine.health -= projectiles[i].damage;
+        bossMarineStealHealth();
         return;
       }
     }
@@ -2635,6 +2673,7 @@ void checkRegularProjectileCollision(int i) {
     if (CheckCollisionCircles(proj, radius, bossBall.position, BOSS_BALL_HITBOX_RADIUS)) {
       projectiles[i].willBeDestroyed = true;
       bossBall.health -= projectiles[i].damage;
+      bossBallStealHealth();
       return;
     }
   } break;
@@ -2700,6 +2739,7 @@ void checkSquaredProjectileCollision(int i) {
       if (doesRectangleCollideWithACircle(proj, angle, pos, r, origin)) {
         projectiles[i].willBeDestroyed = true;
         bossMarine.health -= projectiles[i].damage;
+        bossMarineStealHealth();
         return;
       }
     }
@@ -2708,6 +2748,7 @@ void checkSquaredProjectileCollision(int i) {
     if (doesRectangleCollideWithACircle(proj, angle, bossBall.position, BOSS_BALL_HITBOX_RADIUS, origin)) {
       projectiles[i].willBeDestroyed = true;
       bossBall.health -= projectiles[i].damage;
+      bossBallStealHealth();
       return;
     }
 
@@ -2872,6 +2913,8 @@ void updatePlayerCooldowns(void) {
   frameTime *= 2;
   DECREASE_COOLDOWN(player.dashReactivationEffectAlpha);
 
+  DECREASE_COOLDOWN(player.healTimer);
+
 #undef DECREASE_COOLDOWN
 
   if (player.dashCooldown <= 0.0f && dashCooldownActive) {
@@ -3011,6 +3054,7 @@ void bossBallCheckCollisions(bool sendAsteroidsFlying) {
                                        0.0f,
                                        BOSS_BALL_MAX_HEALTH);
           asteroids[ai].launchedByPlayer = false;
+          bossBallStealHealth();
         }
 
         float angle = angleBetweenPoints(bossBall.position, asteroids[ai].position) * DEG2RAD;
@@ -3248,6 +3292,9 @@ void initSoundEffects(void) {
   hit = LoadSound("resources/hit.wav");
   SetSoundVolume(hit, 0.7);
 
+  playerHealSound = LoadSound("resources/heal.wav");
+  /* SetSoundVolume(playerHealSound, 0.5); */
+
   buttonFocusEffect = LoadSound("resources/hit.wav");
   SetSoundVolume(buttonFocusEffect, 0.1);
 
@@ -3310,10 +3357,9 @@ void initShaders(void) {
 
     dashResetShader = LoadShader(NULL, TextFormat("resources/dash-reset-glow-%d.frag", GLSL_VERSION));
     dashResetShaderAlpha = GetShaderLocation(dashResetShader, "alpha");
-    SetShaderValue(dashResetShader,
-                   GetShaderLocation(dashResetShader, "glowColor"),
-                   &dashResetGlowColor,
-                   SHADER_UNIFORM_VEC4);
+    dashResetShaderColor = GetShaderLocation(dashResetShader, "glowColor");
+
+    SetShaderValue(dashResetShader, dashResetShaderColor, &dashResetGlowColor, SHADER_UNIFORM_VEC4);
   }
 
   {
@@ -3342,6 +3388,15 @@ void initShaders(void) {
                    &bad,
                    SHADER_UNIFORM_VEC4);
     playerHealthBarHealth = GetShaderLocation(playerHealthBarShader, "health");
+
+    playerHealthBarHealTimer = GetShaderLocation(playerHealthBarShader, "healTimer");
+    int shaderHealColor = GetShaderLocation(playerHealthBarShader, "healColor");
+    Vector4 healColor = ColorNormalize(ColorAlpha(GREEN, 0.1));
+
+    SetShaderValue(playerHealthBarShader,
+                   shaderHealColor,
+                   &healColor,
+                   SHADER_UNIFORM_VEC4);
   }
 
   {
@@ -4891,6 +4946,8 @@ Rectangle perkRect(Perk perk) {
   case PERK_FAST_BULLETS: return (Rectangle) {193, 128, 19, 25};
   case PERK_DOUBLE_HP: return (Rectangle) {215, 128, 19, 25};
   case PERK_GLASS_CANON: return (Rectangle) {38, 128, 19, 25};
+  case PERK_VAMPIRISM: return (Rectangle) {240, 128, 19, 25};
+  case PERK_OMINOUS_AURA: return (Rectangle) {261, 128, 19, 25};
   };
 
   assert(false);
@@ -4908,6 +4965,8 @@ char *perkName(Perk perk) {
   case PERK_FAST_BULLETS: return "Rapid Fire";
   case PERK_DOUBLE_HP: return "More health";
   case PERK_GLASS_CANON: return "Glass cannon";
+  case PERK_VAMPIRISM: return "Vampirism";
+  case PERK_OMINOUS_AURA: return "Ominous aura";
   };
 
   assert(false);
@@ -4932,6 +4991,7 @@ void updateAndRenderStats(void) {
       currentBoss = BOSS_BALL;
       introductionStage = BOSS_INTRODUCTION_BEGINNING;
       player.health = MAX_PLAYER_HEALTH;
+      player.healthStolen = 0;
       playerStats.bossTime = 0.0f;
     } break;
     case BOSS_BALL: {
