@@ -1113,7 +1113,7 @@ void tryDashing(void) {
 #define PLAYER_FIRE_COOLDOWN 0.15f
 #define PLAYER_PROJECTILE_RADIUS 9
 #define PLAYER_PROJECTILE_SPEED 30.0f
-#define PLAYER_PROJECTILE_BASE_DAMAGE 40
+#define PLAYER_PROJECTILE_BASE_DAMAGE 4
 
 void tryFiringAShot(void) {
   if (!IsMouseButtonDown(MOUSE_BUTTON_LEFT) ||
@@ -4796,7 +4796,7 @@ static Perk firstNewPerk;
 static Perk secondNewPerk;
 
 void playerGiveOneRandomPerk(void) {
-  if (player.perks == 0b1111111111) {
+  if (player.perks == 0b111111111111) {
     return;
   }
 
@@ -4811,6 +4811,8 @@ void playerGiveOneRandomPerk(void) {
     PERK_FAST_BULLETS,
     PERK_DOUBLE_HP,
     PERK_GLASS_CANON,
+    PERK_VAMPIRISM,
+    PERK_OMINOUS_AURA,
   };
   int perks_len = sizeof(perks) / sizeof(perks[0]);
 
