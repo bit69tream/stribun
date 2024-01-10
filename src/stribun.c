@@ -571,7 +571,7 @@ static Particle particles[PARTICLES_MAX] = {0};
 
 #define MAX_PLAYER_HEALTH maxPlayerHealth()
 int maxPlayerHealth(void) {
-  int base = 128;
+  int base = 8;
 
   if (player.perks & PERK_GLASS_CANON) {
     base /= 4;
@@ -3413,7 +3413,6 @@ void initPlayer(void) {
     .isInvincible = false,
     .health = MAX_PLAYER_HEALTH,
     .bulletSpread = 1,
-    .perks = PERK_OMINOUS_AURA,
   };
 }
 
