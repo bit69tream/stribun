@@ -4341,7 +4341,7 @@ void bossBallCheckDisconnectedWeaponCollisions(void) {
         }
       }
     }
-  player:
+  player:;
 
 
     float distance = Vector2Distance(player.position, bossBall.weapons[w].position);
