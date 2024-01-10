@@ -15,7 +15,7 @@ void main() {
   vec4 orig = texture2D(texture0, fragTexCoord) * colDiffuse;
 
   if (orig.a == 0.) {
-    finalColor = orig;
+    gl_FragColor = orig;
     return;
   }
 
