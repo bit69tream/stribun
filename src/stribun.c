@@ -96,20 +96,27 @@ typedef enum {
 
 #define PLAYER_MOVEMENT_SPEED 6
 
+#define X_PERKS                                                         \
+  X(PERK_RANDOM_SIZED_BULLETS , 0b000000000001, "Diverse bullets", 16, 128, 19, 25) \
+  X(PERK_MORE_SPREAD          , 0b000000000010, "Spread",          61, 128, 19, 25)    \
+  X(PERK_HOMING               , 0b000000000100, "Homing bullets",  85, 128, 19, 25) \
+  X(PERK_STRONG_DASH          , 0b000000001000, "Forg",            107, 128, 19, 25)     \
+  X(PERK_DOUBLE_DAMAGE        , 0b000000010000, "Strong bullets",  128, 128, 19, 25) \
+  X(PERK_LESS_HP_MORE_DAMAGE  , 0b000000100000, "Dying resolve",   151, 128, 19, 25) \
+  X(PERK_SLOW_BUT_STEADY      , 0b000001000000, "Slow but steady", 172, 128, 19, 25) \
+  X(PERK_FAST_BULLETS         , 0b000010000000, "Rapid fire",      193, 128, 19, 25) \
+  X(PERK_DOUBLE_HP            , 0b000100000000, "More health",     215, 128, 19, 25)  \
+  X(PERK_GLASS_CANON          , 0b001000000000, "Glass cannon",    38, 128, 19, 25) \
+  X(PERK_VAMPIRISM            , 0b010000000000, "Vampirism",       240, 128, 19, 25)    \
+  X(PERK_OMINOUS_AURA         , 0b100000000000, "Ominous aura",    261, 128, 19, 25)
+
+#define X(v, m, n, rx, ry, rw, rh) v = m,
+
 typedef enum {
-  PERK_RANDOM_SIZED_BULLETS = 0b000000000001,
-  PERK_MORE_SPREAD          = 0b000000000010,
-  PERK_HOMING               = 0b000000000100,
-  PERK_STRONG_DASH          = 0b000000001000,
-  PERK_DOUBLE_DAMAGE        = 0b000000010000,
-  PERK_LESS_HP_MORE_DAMAGE  = 0b000000100000,
-  PERK_SLOW_BUT_STEADY      = 0b000001000000,
-  PERK_FAST_BULLETS         = 0b000010000000,
-  PERK_DOUBLE_HP            = 0b000100000000,
-  PERK_GLASS_CANON          = 0b001000000000,
-  PERK_VAMPIRISM            = 0b010000000000,
-  PERK_OMINOUS_AURA         = 0b100000000000,
+  X_PERKS
 } Perk;
+
+#undef X
 
 typedef struct {
   Vector2 position;
@@ -2171,8 +2178,6 @@ void renderBossBallWeapon(int i, float angle) {
 
   Color color = ColorFromHSV(0, 0, bossBall.weapons[i].deactivationDark);
 
-  printf("%.2f\n", bossBall.weapons[i].deactivationDark);
-
   DrawTexturePro(sprites,
                  r,
                  (Rectangle) {
@@ -3436,7 +3441,6 @@ void initAsteroids(void) {
     Image a = LoadImageFromTexture(sprites);
     ImageCrop(&a, asteroidSprites[i].textureRect);
     asteroidSprites[i].palette = LoadImagePalette(a, MAX_ASTEROID_PALETTE_SIZE, &asteroidSprites[i].paletteLen);
-    printf("%d\n", asteroidSprites[i].paletteLen);
     UnloadImage(a);
   }
 
@@ -5020,24 +5024,21 @@ static Perk firstNewPerk;
 static Perk secondNewPerk;
 
 void playerGiveOneRandomPerk(void) {
-  if (player.perks == 0b111111111111) {
+  Perk allPerks = 0;
+#define X(v, m, n, rx, ry, rw, rh) allPerks |= v;
+  X_PERKS
+#undef X
+
+  if (player.perks == allPerks) {
     return;
   }
 
+#define X(v, m, n, rx, ry, rw, rh) v,
   static Perk perks[] = {
-    PERK_RANDOM_SIZED_BULLETS,
-    PERK_MORE_SPREAD,
-    PERK_HOMING,
-    PERK_STRONG_DASH,
-    PERK_DOUBLE_DAMAGE,
-    PERK_LESS_HP_MORE_DAMAGE,
-    PERK_SLOW_BUT_STEADY,
-    PERK_FAST_BULLETS,
-    PERK_DOUBLE_HP,
-    PERK_GLASS_CANON,
-    PERK_VAMPIRISM,
-    PERK_OMINOUS_AURA,
+    X_PERKS
   };
+#undef X
+
   int perks_len = sizeof(perks) / sizeof(perks[0]);
 
   Perk newPerk = 0;
@@ -5161,39 +5162,25 @@ void updateAndRenderPlayerDead(void) {
 }
 
 Rectangle perkRect(Perk perk) {
+#define X(v, m, n, rx, ry, rw, rh) case v: return (Rectangle) {rx, ry, rw, rh};
+
   switch (perk) {
-  case PERK_RANDOM_SIZED_BULLETS: return (Rectangle) {16, 128, 19, 25};
-  case PERK_MORE_SPREAD: return (Rectangle) {61, 128, 19, 25};
-  case PERK_HOMING: return (Rectangle) {85, 128, 19, 25};
-  case PERK_STRONG_DASH: return (Rectangle) {107, 128, 19, 25};
-  case PERK_DOUBLE_DAMAGE: return (Rectangle) {128, 128, 19, 25};
-  case PERK_LESS_HP_MORE_DAMAGE: return (Rectangle) {151, 128, 19, 25};
-  case PERK_SLOW_BUT_STEADY: return (Rectangle) {172, 128, 19, 25};
-  case PERK_FAST_BULLETS: return (Rectangle) {193, 128, 19, 25};
-  case PERK_DOUBLE_HP: return (Rectangle) {215, 128, 19, 25};
-  case PERK_GLASS_CANON: return (Rectangle) {38, 128, 19, 25};
-  case PERK_VAMPIRISM: return (Rectangle) {240, 128, 19, 25};
-  case PERK_OMINOUS_AURA: return (Rectangle) {261, 128, 19, 25};
+    X_PERKS
   };
+
+#undef X
 
   assert(false);
 }
 
 char *perkName(Perk perk) {
+#define X(v, m, n, rx, ry, rw, rh) case v: return n;
+
   switch (perk) {
-  case PERK_RANDOM_SIZED_BULLETS: return "Diverse bullets";
-  case PERK_MORE_SPREAD: return "SPREEEEAD";
-  case PERK_HOMING: return "Homing bullets";
-  case PERK_STRONG_DASH: return "Forg";
-  case PERK_DOUBLE_DAMAGE: return "Strong bullets";
-  case PERK_LESS_HP_MORE_DAMAGE: return "Last hope";
-  case PERK_SLOW_BUT_STEADY: return "Slow but steady";
-  case PERK_FAST_BULLETS: return "Rapid Fire";
-  case PERK_DOUBLE_HP: return "More health";
-  case PERK_GLASS_CANON: return "Glass cannon";
-  case PERK_VAMPIRISM: return "Vampirism";
-  case PERK_OMINOUS_AURA: return "Ominous aura";
+    X_PERKS
   };
+
+#undef X
 
   assert(false);
 }
