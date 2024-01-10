@@ -96,19 +96,20 @@ typedef enum {
 
 #define PLAYER_MOVEMENT_SPEED 6
 
-#define X_PERKS                                                         \
-  X(PERK_RANDOM_SIZED_BULLETS , 0b000000000001, "Diverse bullets", 16, 128, 19, 25) \
-  X(PERK_MORE_SPREAD          , 0b000000000010, "Spread",          61, 128, 19, 25)    \
-  X(PERK_HOMING               , 0b000000000100, "Homing bullets",  85, 128, 19, 25) \
-  X(PERK_STRONG_DASH          , 0b000000001000, "Forg",            107, 128, 19, 25)     \
-  X(PERK_DOUBLE_DAMAGE        , 0b000000010000, "Strong bullets",  128, 128, 19, 25) \
-  X(PERK_LESS_HP_MORE_DAMAGE  , 0b000000100000, "Dying resolve",   151, 128, 19, 25) \
-  X(PERK_SLOW_BUT_STEADY      , 0b000001000000, "Slow but steady", 172, 128, 19, 25) \
-  X(PERK_FAST_BULLETS         , 0b000010000000, "Rapid fire",      193, 128, 19, 25) \
-  X(PERK_DOUBLE_HP            , 0b000100000000, "More health",     215, 128, 19, 25)  \
-  X(PERK_GLASS_CANON          , 0b001000000000, "Glass cannon",    38, 128, 19, 25) \
-  X(PERK_VAMPIRISM            , 0b010000000000, "Vampirism",       240, 128, 19, 25)    \
-  X(PERK_OMINOUS_AURA         , 0b100000000000, "Ominous aura",    261, 128, 19, 25)
+#define X_PERKS                                                                      \
+  X(PERK_RANDOM_SIZED_BULLETS        , 0b0000000000001, "Diverse bullets", 16, 128, 19, 25)  \
+  X(PERK_MORE_SPREAD                 , 0b0000000000010, "Spread",          61, 128, 19, 25)  \
+  X(PERK_HOMING                      , 0b0000000000100, "Homing bullets",  85, 128, 19, 25)  \
+  X(PERK_STRONG_DASH                 , 0b0000000001000, "Forg",            107, 128, 19, 25) \
+  X(PERK_DOUBLE_DAMAGE               , 0b0000000010000, "Strong bullets",  128, 128, 19, 25) \
+  X(PERK_LESS_HP_MORE_DAMAGE         , 0b0000000100000, "Dying resolve",   151, 128, 19, 25) \
+  X(PERK_SLOW_BUT_STEADY             , 0b0000001000000, "Slow but steady", 172, 128, 19, 25) \
+  X(PERK_FAST_BULLETS                , 0b0000010000000, "Rapid fire",      193, 128, 19, 25) \
+  X(PERK_DOUBLE_HP                   , 0b0000100000000, "More health",     215, 128, 19, 25) \
+  X(PERK_GLASS_CANON                 , 0b0001000000000, "Glass cannon",    38, 128, 19, 25)  \
+  X(PERK_VAMPIRISM                   , 0b0010000000000, "Vampirism",       240, 128, 19, 25) \
+  X(PERK_OMINOUS_AURA                , 0b0100000000000, "Ominous aura",    261, 128, 19, 25) \
+  X(PERK_MORE_BULLETS                , 0b1000000000000, "More bullets",    282, 128, 19, 25)
 
 #define X(v, m, n, rx, ry, rw, rh) v = m,
 
@@ -1181,12 +1182,6 @@ void tryFiringAShot(void) {
     return;
   }
 
-  Projectile *new_projectile = push_projectile();
-
-  if (new_projectile == NULL) {
-    return;
-  }
-
   int spread = player.bulletSpread;
   if (player.perks & PERK_MORE_SPREAD) {
     spread = 20;
@@ -1204,6 +1199,12 @@ void tryFiringAShot(void) {
 
     float area = multX * multY;
     damage = ceilf(area / 5.0f);
+  }
+
+  if (player.perks & PERK_LESS_HP_MORE_DAMAGE) {
+    float mult = 1.0f - ((float)player.health / MAX_PLAYER_HEALTH);
+    multX += mult;
+    multY += mult;
   }
 
   if (player.perks & PERK_DOUBLE_DAMAGE) {
@@ -1238,30 +1239,86 @@ void tryFiringAShot(void) {
     inside = BLACK;
   }
 
-  *new_projectile = (Projectile) {
-    .type = PROJECTILE_SQUARED,
-    /* .type = PROJECTILE_REGULAR, */
-
-    .isHurtfulForPlayer = false,
-    .isHurtfulForBoss = true,
-
-    .damage = damage,
-
-    .origin = Vector2Add(player.position, Vector2Scale(lookingDirection, 35)),
-    /* .radius = PLAYER_PROJECTILE_RADIUS, */
-    .size = (Vector2) {
-      .x = PLAYER_PROJECTILE_RADIUS * multX,
-      .y = PLAYER_PROJECTILE_RADIUS * multY,
-    },
-    .delta = Vector2Rotate(Vector2Scale(lookingDirection, speed),
-                           a * DEG2RAD),
-    .angle = playerLookingAngle() + (float)a,
-
-    .inside = inside,
-    .outside = outside,
-    .lifetime = 10,
-    .canBounce = false,
+  Vector2 size = {
+    .x = PLAYER_PROJECTILE_RADIUS * multX,
+    .y = PLAYER_PROJECTILE_RADIUS * multY,
   };
+
+  float angle = playerLookingAngle() + (float)a;
+  Vector2 delta = Vector2Rotate(Vector2Scale(lookingDirection, speed),
+                                a * DEG2RAD);
+
+  if (player.perks & PERK_MORE_BULLETS) {
+    Projectile *newProjectile1 = push_projectile();
+
+    if (newProjectile1 == NULL) {
+      return;
+    }
+
+    // Vector2 originCenter = Vector2Add(player.position, Vector2Scale(lookingDirection, 35));
+    Vector2 lookingLeft = Vector2Rotate(lookingDirection, -15 * DEG2RAD);
+    Vector2 lookingRight = Vector2Rotate(lookingDirection, 15 * DEG2RAD);
+
+    Vector2 origLeft = Vector2Scale(lookingLeft, 55);
+    Vector2 origRight = Vector2Scale(lookingRight, 55);
+
+    Vector2 origin1 = Vector2Add(player.position, origLeft);
+    Vector2 origin2 = Vector2Add(player.position, origRight);
+
+    Projectile proj = {
+      .type = PROJECTILE_SQUARED,
+
+      .isHurtfulForPlayer = false,
+      .isHurtfulForBoss = true,
+
+      .damage = damage,
+      .size = size,
+      .delta = delta,
+      .angle = angle,
+
+      .inside = inside,
+      .outside = outside,
+      .lifetime = 10,
+      .canBounce = false,
+    };
+
+    *newProjectile1 = proj;
+    newProjectile1->origin = origin1;
+
+    Projectile *newProjectile2 = push_projectile();
+
+    if (newProjectile2 == NULL) {
+      return;
+    }
+
+    *newProjectile2 = proj;
+    newProjectile2->origin = origin2;
+  } else {
+    Projectile *new_projectile = push_projectile();
+
+    if (new_projectile == NULL) {
+      return;
+    }
+
+    *new_projectile = (Projectile) {
+      .type = PROJECTILE_SQUARED,
+
+      .isHurtfulForPlayer = false,
+      .isHurtfulForBoss = true,
+
+      .damage = damage,
+
+      .origin = Vector2Add(player.position, Vector2Scale(lookingDirection, 35)),
+      .size = size,
+      .delta = delta,
+      .angle = angle,
+
+      .inside = inside,
+      .outside = outside,
+      .lifetime = 10,
+      .canBounce = false,
+    };
+  }
 
   float cooldown = PLAYER_FIRE_COOLDOWN;
   if (player.perks & PERK_FAST_BULLETS) {
@@ -1511,7 +1568,7 @@ void processCollisions(void) {
     if (CheckCollisionCircleRec(rotatedRelativePlayerPosition, PLAYER_HITBOX_RADIUS, laser) &&
         player.iframeTimer <= 0.0f) {
       PlaySound(hit);
-      player.health -= 1;
+      player.health -= 1 * (player.perks & PERK_MORE_BULLETS ? 2 : 1);
       player.iframeTimer = 0.4f;
     }
   }
@@ -2809,7 +2866,7 @@ void checkRegularProjectileCollision(int i) {
 
     if (player.iframeTimer == 0.0f) {
       PlaySound(hit);
-      player.health -= projectiles[i].damage;
+      player.health -= projectiles[i].damage * (player.perks & PERK_MORE_BULLETS ? 2 : 1);
       player.iframeTimer = 0.3f;
     }
     return;
@@ -2890,7 +2947,7 @@ void checkSquaredProjectileCollision(int i) {
 
     if (player.iframeTimer == 0.0f) {
       PlaySound(hit);
-      player.health -= projectiles[i].damage;
+      player.health -= projectiles[i].damage * (player.perks & PERK_MORE_BULLETS ? 2 : 1);
       player.iframeTimer = 0.3f;
     }
 
@@ -3278,7 +3335,7 @@ void bossBallCheckCollisions(bool sendAsteroidsFlying) {
         ((player.perks & PERK_OMINOUS_AURA) == 0)) {
       PlaySound(hit);
 
-      player.health -= 2;
+      player.health -= 2 * (player.perks & PERK_MORE_BULLETS ? 2 : 1);
       player.iframeTimer = 0.4f;
     }
   }
@@ -3418,6 +3475,7 @@ void initPlayer(void) {
     .isInvincible = false,
     .health = MAX_PLAYER_HEALTH,
     .bulletSpread = 1,
+    .perks = PERK_MORE_BULLETS,
   };
 }
 
