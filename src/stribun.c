@@ -354,6 +354,7 @@ static const Vector2 background = {
 static RenderTexture2D target = {0};
 
 static Texture2D nebulaNoise = {0};
+static RenderTexture2D backgroundTexture = {0};
 
 #define BIG_ASS_ASTEROID_SCALE 15
 
@@ -393,6 +394,15 @@ static int playerHealthBarHealTimer = {0};
 static Shader pixelationShader = {0};
 static int pixelationShaderPixelSize = {0};
 
+static Rectangle playerAuraRect = {415, 110, 21, 23};
+#define PLAYER_AURA_WIDTH floorf(playerAuraRect.width * SPRITES_SCALE)
+#define PLAYER_AURA_HEIGHT floorf(playerAuraRect.height * SPRITES_SCALE)
+
+static Shader playerAuraShader = {0};
+static int playerAuraTime = {0};
+
+static Sound asteroidDestructionSound = {0};
+
 static Rectangle playerRect = {
   .x = 0,
   .y = 16,
@@ -400,14 +410,19 @@ static Rectangle playerRect = {
   .height = 19,
 };
 
+#define MAX_ASTEROID_PALETTE_SIZE 256
+
 typedef struct {
   Rectangle textureRect;
   int boundingCirclesLen;
   /* NOTE: positions are relative to the center of the texture */
   Circle boundingCircles[MAX_BOUNDING_CIRCLES];
+
+  Color *palette;
+  int paletteLen;
 } AsteroidSprite;
 
-static const AsteroidSprite asteroidSprites[] = {
+static AsteroidSprite asteroidSprites[] = {
   {
     .textureRect = {
       .x = 34,
@@ -422,6 +437,8 @@ static const AsteroidSprite asteroidSprites[] = {
         .radius = 9,
       }
     },
+    .palette = NULL,
+    .paletteLen = 0,
   },
   {
     .textureRect = {
@@ -444,7 +461,9 @@ static const AsteroidSprite asteroidSprites[] = {
         .position = {-6, 1},
         .radius = 12,
       }
-    }
+    },
+    .palette = NULL,
+    .paletteLen = 0,
   },
   {
     .textureRect = {
@@ -459,7 +478,9 @@ static const AsteroidSprite asteroidSprites[] = {
         .position = {0, 0},
         .radius = 13,
       }
-    }
+    },
+    .palette = NULL,
+    .paletteLen = 0,
   }
 };
 
@@ -472,6 +493,7 @@ typedef struct {
 
   Circle processedBoundingCircles[MAX_BOUNDING_CIRCLES];
   bool launchedByPlayer;
+  bool isDestroyed;
 } Asteroid;
 
 #define MIN_ASTEROIDS 4
@@ -536,9 +558,20 @@ typedef struct {
 
 static Projectile projectiles[PROJECTILES_MAX] = {0};
 
+typedef struct {
+  Color color;
+  float angle;
+  float lifetime;
+  Vector2 position;
+  Vector2 delta;
+} Particle;
+
+#define PARTICLES_MAX 2048
+static Particle particles[PARTICLES_MAX] = {0};
+
 #define MAX_PLAYER_HEALTH maxPlayerHealth()
 int maxPlayerHealth(void) {
-  int base = 8;
+  int base = 128;
 
   if (player.perks & PERK_GLASS_CANON) {
     base /= 4;
@@ -760,7 +793,6 @@ void bossMarineCheckCollisions(bool sendAsteroidsFlying) {
           (asteroids[ai].processedBoundingCircles[abi].radius + r);
 
         if (distance < radiusSum) {
-
           if (asteroids[ai].launchedByPlayer) {
 #define ASTEROID_BASE_DAMAGE 4
             float damageMultiplier = Vector2Length(asteroids[ai].delta);
@@ -781,6 +813,26 @@ void bossMarineCheckCollisions(bool sendAsteroidsFlying) {
             asteroids[ai].delta = Vector2Add(asteroids[ai].delta, Vector2Scale(asteroidOffset, 0.5));
           }
         }
+      }
+    }
+  }
+
+  for (int i = 0; i < BOSS_MARINE_BOUNDING_CIRCLES; i++) {
+    Vector2 bcPos = Vector2Add(bossMarine.processedBoundingCircles[i].position,
+                               bossMarine.position);
+    float r = bossMarine.processedBoundingCircles[i].radius;
+
+    float distance = Vector2Distance(player.position, bcPos);
+    float radiusSum = PLAYER_HITBOX_RADIUS + r;
+
+    if (distance < radiusSum) {
+      float angle = angleBetweenPoints(bcPos, player.position);
+      float offsetDistance = distance - radiusSum;
+      Vector2 offset = Vector2Rotate((Vector2){0, offsetDistance}, angle);
+      player.position = Vector2Add(player.position, offset);
+
+      if (player.perks & PERK_OMINOUS_AURA) {
+        bossMarine.health -= 1;
       }
     }
   }
@@ -1322,6 +1374,53 @@ void updatePlayerDashTrails(void) {
   }
 }
 
+float randomFloat(void) {
+  return (float)rand() / (float)RAND_MAX;
+}
+
+Particle *pushParticle() {
+  for (int i = 0; i < PARTICLES_MAX; i++) {
+    if (particles[i].lifetime <= 0.0f) {
+      return &particles[i];
+    }
+  }
+
+  return NULL;
+}
+
+void spawnAsteroidParticles(int i) {
+  float particleAmount = 1.0f * (asteroids[i].sprite->textureRect.width *
+                                 asteroids[i].sprite->textureRect.height);
+  float particlesPerCircle = particleAmount / asteroids[i].sprite->boundingCirclesLen;
+
+  for (int j = 0; j < asteroids[i].sprite->boundingCirclesLen; j++) {
+    for (int p = 0; p < particlesPerCircle; p++) {
+      Particle *newParticle = pushParticle();
+
+      if (newParticle == NULL) {
+        return;
+      }
+
+      Vector2 direction = (Vector2) {randomFloat() * 2.0f - 1.0f, randomFloat() * 2.0f - 1.0f};
+      float r = asteroids[i].processedBoundingCircles[j].radius;
+      float mag = r * randomFloat();
+      Vector2 pos = Vector2Scale(direction, mag);
+      Vector2 actualPos = Vector2Add(asteroids[i].position,
+                                     Vector2Add(asteroids[i].processedBoundingCircles[j].position, pos));
+
+      float speed = randomFloat() * 2;
+
+      *newParticle = (Particle) {
+        .color = asteroids[i].sprite->palette[GetRandomValue(0, asteroids[i].sprite->paletteLen - 1)],
+        .angle = asteroids[i].angle,
+        .lifetime = 2.0f,
+        .position = actualPos,
+        .delta = Vector2Scale(direction, speed),
+      };
+    }
+  }
+}
+
 void processCollisions(void) {
   for (int i = 0; i < asteroidsLen; i++) {
     for (int j = 0; j < asteroids[i].sprite->boundingCirclesLen; j++) {
@@ -1344,9 +1443,18 @@ void processCollisions(void) {
         Vector2 offset = Vector2Rotate((Vector2) {0, offsetDistance}, angle * DEG2RAD);
 
         if (player.isInvincible) {
-          asteroids[i].position = Vector2Add(asteroids[i].position, offset);
-          asteroids[i].delta = Vector2Add(asteroids[i].delta, Vector2Scale(offset, 0.2f));
-          asteroids[i].launchedByPlayer = true;
+          if (player.perks & PERK_OMINOUS_AURA) {
+
+            spawnAsteroidParticles(i);
+
+            asteroids[i].isDestroyed = true;
+            asteroids[i].position = (Vector2) {-200, -200};
+            PlaySound(asteroidDestructionSound);
+          } else {
+            asteroids[i].position = Vector2Add(asteroids[i].position, offset);
+            asteroids[i].delta = Vector2Add(asteroids[i].delta, Vector2Scale(offset, 0.2f));
+            asteroids[i].launchedByPlayer = true;
+          }
         } else {
           player.position = Vector2Add(player.position, offset);
         }
@@ -1393,9 +1501,7 @@ void processCollisions(void) {
       LASER_WIDTH,
     };
 
-    if (CheckCollisionCircleRec(rotatedRelativePlayerPosition,
-                                PLAYER_HITBOX_RADIUS,
-                                laser) &&
+    if (CheckCollisionCircleRec(rotatedRelativePlayerPosition, PLAYER_HITBOX_RADIUS, laser) &&
         player.iframeTimer <= 0.0f) {
       PlaySound(hit);
       player.health -= 1;
@@ -1425,7 +1531,23 @@ void updatePlayerPosition(void) {
                  });
 }
 
-void renderBackground(bool dom) {
+void preRenderBackground(bool dom) {
+  float domv = dom ? 1.0f : 0.0f;
+
+  SetShaderValue(stars, starsDom, &domv, SHADER_UNIFORM_FLOAT);
+  SetShaderValue(stars, starsTime, &time, SHADER_UNIFORM_FLOAT);
+
+  BeginTextureMode(backgroundTexture); {
+    BeginBlendMode(BLEND_ALPHA); {
+      ClearBackground((Color) {41, 1, 53, 69});
+      BeginShaderMode(stars); {
+        DrawTexture(nebulaNoise, 0, 0, WHITE);
+      }; EndShaderMode();
+    }; EndBlendMode();
+  }; EndTextureMode();
+}
+
+void renderBackground() {
   Vector2 pos = player.position;
 
   if (gameState == GAME_MAIN_MENU) {
@@ -1438,37 +1560,15 @@ void renderBackground(bool dom) {
   float background_y = Lerp(0, BACKGROUND_PARALLAX_OFFSET,
                             pos.y / LEVEL_HEIGHT);
 
-  float domv = dom ? 1.0f : 0.0f;
-
-  SetShaderValue(stars, starsDom, &domv, SHADER_UNIFORM_FLOAT);
-  SetShaderValue(stars, starsTime, &time, SHADER_UNIFORM_FLOAT);
-
-  BeginBlendMode(BLEND_ALPHA); {
-    ClearBackground((Color) {41, 1, 53, 69});
-    BeginShaderMode(stars); {
-      DrawTexturePro(nebulaNoise,
-                     (Rectangle) {
-                       .x = background_x,
-                       .y = background_y,
-                       .width = nebulaNoise.width - BACKGROUND_PARALLAX_OFFSET,
-                       .height = nebulaNoise.height - BACKGROUND_PARALLAX_OFFSET,
-                     },
-                     (Rectangle) {
-                       .x = 0,
-                       .y = 0,
-                       .width = LEVEL_WIDTH,
-                       .height = LEVEL_HEIGHT,
-                     },
-                     Vector2Zero(),
-                     0,
-                     WHITE);
-    } EndShaderMode();
-  } EndBlendMode();
+  DrawTexture(backgroundTexture.texture,
+              background_x, background_y,
+              WHITE);
 }
 
 static RenderTexture2D playerTexture = {0};
 static RenderTexture2D playerTexture1 = {0};
 static RenderTexture2D playerTexture2 = {0};
+static RenderTexture2D playerAuraTexture = {0};
 
 #define THRUSTERS_BOTTOM 0b0001
 #define THRUSTERS_TOP    0b0010
@@ -1657,6 +1757,24 @@ static int dashResetShaderColor = 0;
 void renderPlayerTexture(void) {
   int thrusters = whichThrustersToUse();
 
+  BeginTextureMode(playerAuraTexture); {
+    ClearBackground(BLANK);
+
+    SetShaderValue(playerAuraShader,
+                   playerAuraTime,
+                   &time,
+                   SHADER_UNIFORM_FLOAT);
+
+    BeginShaderMode(playerAuraShader); {
+      DrawTexturePro(sprites,
+                     playerAuraRect,
+                     (Rectangle) {0, 0, PLAYER_AURA_WIDTH, PLAYER_AURA_HEIGHT},
+                     Vector2Zero(),
+                     0,
+                     WHITE);
+    }; EndShaderMode();
+  }; EndTextureMode();
+
   float health = (float)player.health / (float)MAX_PLAYER_HEALTH;
 
   BeginTextureMode(playerTexture1); {
@@ -1750,6 +1868,28 @@ void renderPlayer(void) {
   if (player.iframeTimer > 0.0f) {
     float a = sinf(time * 40) * .5 + 1.;
     alpha = Remap(a, 0, 1, 0.7, 1.0);
+  }
+
+  if (player.perks & PERK_OMINOUS_AURA) {
+    DrawTexturePro(playerAuraTexture.texture,
+                   (Rectangle) {
+                     .x = 0,
+                     .y = 0,
+                     .width  = playerAuraTexture.texture.width,
+                     .height = -playerAuraTexture.texture.height,
+                   },
+                   (Rectangle) {
+                     .x = player.position.x,
+                     .y = player.position.y,
+                     .width  = playerAuraTexture.texture.width,
+                     .height = playerAuraTexture.texture.height,
+                   },
+                   (Vector2) {
+                     .x = 0.5f * playerAuraTexture.texture.width,
+                     .y = 0.5f * playerAuraTexture.texture.height,
+                   },
+                   playerLookingAngle(),
+                   WHITE);
   }
 
   DrawTexturePro(playerTexture.texture,
@@ -2204,6 +2344,19 @@ void renderLasers(void) {
   }
 }
 
+void renderParticles(void) {
+  for (int i = 0; i < PARTICLES_MAX; i++) {
+    if (particles[i].lifetime <= 0.0f) {
+      continue;
+    }
+
+    DrawRectanglePro((Rectangle) {particles[i].position.x, particles[i].position.y, SPRITES_SCALE, SPRITES_SCALE},
+                     (Vector2) {SPRITES_SCALE * 0.5f, SPRITES_SCALE * 0.5f},
+                     particles[i].angle,
+                     ColorAlpha(particles[i].color, particles[i].lifetime));
+  }
+}
+
 void renderPhase1(void) {
   renderPlayerTexture();
 
@@ -2213,10 +2366,12 @@ void renderPhase1(void) {
     prerenderBossBall();
   }
 
+  preRenderBackground(currentBoss != BOSS_BALL);
+
   BeginTextureMode(target); {
     ClearBackground(BLACK);
 
-    renderBackground(currentBoss != BOSS_BALL);
+    renderBackground();
 
     if (currentBoss == BOSS_MARINE) {
       renderBackgroundAsteroid();
@@ -2227,6 +2382,8 @@ void renderPhase1(void) {
          introductionStage != BOSS_INTRODUCTION_BEGINNING)) {
       renderArenaBorder();
     }
+
+    renderParticles();
 
     renderAsteroids();
 
@@ -2267,11 +2424,14 @@ static Rectangle bossMarineHeadRect = {
 };
 
 void renderPlayerHealthBar(void) {
+  float w = playerRect.width * camera.zoom * SPRITES_SCALE;
+  float h = playerRect.height * camera.zoom * SPRITES_SCALE;
+
   Rectangle rect = {
-    .x = 20,
-    .y = 20,
-    .width = playerRect.width * camera.zoom * SPRITES_SCALE,
-    .height = playerRect.height * camera.zoom * SPRITES_SCALE,
+    .x = w / 2 + 20,
+    .y = h / 2 + 20,
+    .width = w,
+    .height = h,
   };
 
   DrawTexturePro(playerTexture2.texture,
@@ -2279,8 +2439,8 @@ void renderPlayerHealthBar(void) {
                    0, 0, playerTexture2.texture.width, playerTexture2.texture.height
                  },
                  rect,
-                 Vector2Zero(),
-                 0,
+                 (Vector2) {w*0.5f, h*0.5f},
+                 sin(time * 10) * 50 * player.iframeTimer,
                  WHITE);
 }
 
@@ -2680,6 +2840,18 @@ void checkRegularProjectileCollision(int i) {
   }
 }
 
+void bossBallDeactivateWeapon(int i) {
+  StopMusicStream(bossBall.weapons[i].soundEffect);
+
+  bossBall.weapons[i].attackCooldown = 2.0f;
+  bossBall.weapons[i].attackTimer = 0.0f;
+
+  bossBall.weapons[i].laserLength = 0;
+  bossBall.weapons[i].chargeLevel = 0;
+
+  bossBall.weapons[i].isDeactivated = true;
+}
+
 void checkSquaredProjectileCollision(int i) {
   Rectangle proj = {
     .x = projectiles[i].origin.x,
@@ -2762,17 +2934,7 @@ void checkSquaredProjectileCollision(int i) {
 
       if (doesRectangleCollideWithACircle(proj, angle, pos, r, origin)) {
         projectiles[i].willBeDestroyed = true;
-
-        StopMusicStream(bossBall.weapons[i].soundEffect);
-
-        bossBall.weapons[i].attackCooldown = 2.0f;
-        bossBall.weapons[i].attackTimer = 0.0f;
-
-        bossBall.weapons[i].laserLength = 0;
-        bossBall.weapons[i].chargeLevel = 0;
-
-        bossBall.weapons[i].isDeactivated = true;
-
+        bossBallDeactivateWeapon(i);
         return;
       }
     }
@@ -2945,7 +3107,11 @@ void updateCamera(void) {
   };
 
   if (gameState == GAME_BOSS_DEAD) {
-    target = bossMarine.position;
+    switch (currentBoss) {
+    case BOSS_MARINE: target = bossMarine.position; break;
+    case BOSS_BALL: target = bossBall.position; break;
+    }
+
     topLeft = Vector2Zero();
     bottomRight = level;
   }
@@ -3103,7 +3269,8 @@ void bossBallCheckCollisions(bool sendAsteroidsFlying) {
 
     player.position = Vector2Add(player.position, asteroidOffset);
 
-    if (player.iframeTimer <= 0.0f) {
+    if ((player.iframeTimer <= 0.0f) &&
+        ((player.perks & PERK_OMINOUS_AURA) == 0)) {
       PlaySound(hit);
 
       player.health -= 2;
@@ -3246,6 +3413,7 @@ void initPlayer(void) {
     .isInvincible = false,
     .health = MAX_PLAYER_HEALTH,
     .bulletSpread = 1,
+    .perks = PERK_OMINOUS_AURA,
   };
 }
 
@@ -3259,9 +3427,21 @@ void initProjectiles(void) {
 }
 
 void initAsteroids(void) {
-  asteroidsLen = GetRandomValue(MIN_ASTEROIDS, MAX_ASTEROIDS - 1);
-
   const int maxAsteroidSprites = (sizeof(asteroidSprites) / sizeof(asteroidSprites[0]));
+
+  for (int i = 0; i < maxAsteroidSprites; i++) {
+    if (asteroidSprites[i].palette != NULL) {
+      break;
+    }
+
+    Image a = LoadImageFromTexture(sprites);
+    ImageCrop(&a, asteroidSprites[i].textureRect);
+    asteroidSprites[i].palette = LoadImagePalette(a, MAX_ASTEROID_PALETTE_SIZE, &asteroidSprites[i].paletteLen);
+    printf("%d\n", asteroidSprites[i].paletteLen);
+    UnloadImage(a);
+  }
+
+  asteroidsLen = GetRandomValue(MIN_ASTEROIDS, MAX_ASTEROIDS - 1);
 
   for (int i = 0; i < asteroidsLen; i++) {
     int asteroidSpriteIndex = GetRandomValue(0, maxAsteroidSprites - 1);
@@ -3314,6 +3494,8 @@ void initSoundEffects(void) {
   bossBallRocketSound = LoadSound("resources/rocket.wav");
 
   bossBallDeath = LoadSound("resources/explosion.wav");
+
+  asteroidDestructionSound = LoadSound("resources/boom.wav");
 }
 
 void initShaders(void) {
@@ -3449,6 +3631,11 @@ void initShaders(void) {
 
     laserShaderTime = GetShaderLocation(laserShader, "time");
   }
+
+  {
+    playerAuraShader = LoadShader(NULL, TextFormat("resources/aura-%d.frag", GLSL_VERSION));
+    playerAuraTime = GetShaderLocation(playerAuraShader, "time");
+  }
 }
 
 void adjustBossBallTargetScreen(void) {
@@ -3468,8 +3655,11 @@ void initTextures(void) {
   playerTexture = LoadRenderTexture(playerRect.width, playerRect.height);
   playerTexture1 = LoadRenderTexture(playerRect.width, playerRect.height);
   playerTexture2 = LoadRenderTexture(playerRect.width, playerRect.height);
+  playerAuraTexture = LoadRenderTexture(PLAYER_AURA_WIDTH, PLAYER_AURA_HEIGHT);
 
   laserTexture = LoadRenderTexture(LASER_WIDTH, LASER_HEIGHT);
+
+  backgroundTexture = LoadRenderTexture(background.x, background.y);
 }
 
 void initThrusterTrails(void) {
@@ -3499,6 +3689,8 @@ void resetGame(void) {
   initProjectiles();
 
   currentBoss = BOSS_MARINE;
+
+  memset(particles, 0, sizeof(particles));
 
   for (int i = 0; i < THRUSTER_TRAILS_MAX; i++) {
     thrusterTrail[i].alpha = 0.0f;
@@ -3793,6 +3985,10 @@ void bossBallAttack(void) {
 
     if (bossBall.weapons[i].attackCooldown > 0.0f) {
       continue;
+    }
+
+    if (bossBall.weapons[i].isDisconnected) {
+      bossBall.weapons[i].seesPlayer = true;
     }
 
     bossBall.weapons[i].isDeactivated = false;
@@ -4102,7 +4298,7 @@ void disconnectAWeaponIfThePlayerIsTooCloseForTooLong(void) {
     bossBall.playerInsideDeadZoneTimer = Lerp(bossBall.playerInsideDeadZoneTimer, 0, 0.1f);
   }
 
-  #define PLAYER_DEAD_ZONE_TIMER_LIMIT 2.0f
+  #define PLAYER_DEAD_ZONE_TIMER_LIMIT 1.5f
   if (bossBall.playerInsideDeadZoneTimer >= PLAYER_DEAD_ZONE_TIMER_LIMIT) {
     bossBall.playerInsideDeadZoneTimer = 0.0f;
 
@@ -4135,9 +4331,18 @@ void bossBallCheckDisconnectedWeaponCollisions(void) {
 
           asteroids[i].position = Vector2Add(asteroids[i].position, offset);
           asteroids[i].delta = Vector2Add(asteroids[i].delta, Vector2Scale(offset, 0.1f));
+
+          if (asteroids[i].launchedByPlayer) {
+            asteroids[i].launchedByPlayer = false;
+            bossBallDeactivateWeapon(w);
+
+          }
+
+          goto player;
         }
       }
     }
+  player:
 
 
     float distance = Vector2Distance(player.position, bossBall.weapons[w].position);
@@ -4152,6 +4357,10 @@ void bossBallCheckDisconnectedWeaponCollisions(void) {
       Vector2 offset = Vector2Rotate((Vector2) {0, offsetDistance}, angle * DEG2RAD);
 
       player.position = Vector2Add(player.position, offset);
+
+      if (player.perks & PERK_OMINOUS_AURA) {
+        bossBallDeactivateWeapon(w);
+      }
     }
   }
 }
@@ -4203,6 +4412,19 @@ void updateBossBall(void) {
   bossBallAttack();
 }
 
+void updateParticles(void) {
+  const float ft = GetFrameTime();
+
+  for (int i = 0; i < PARTICLES_MAX; i++) {
+    if (particles[i].lifetime <= 0.0f) {
+      continue;
+    }
+
+    particles[i].lifetime -= ft;
+    particles[i].position = Vector2Add(particles[i].position, particles[i].delta);
+  }
+}
+
 void updateAndRenderBossFight(void) {
   if (IsKeyPressed(KEY_ESCAPE)) {
     PlaySound(beep);
@@ -4249,6 +4471,7 @@ void updateAndRenderBossFight(void) {
   }
 
   updateProjectiles();
+  updateParticles();
   updateThrusterTrails();
   updatePlayerDashTrails();
   updateAsteroids();
@@ -4304,8 +4527,10 @@ void renderGameTitle(void) {
 }
 
 void renderPhase0(void) {
+  preRenderBackground(true);
+
   BeginTextureMode(target); {
-    renderBackground(true);
+    renderBackground();
   } EndTextureMode();
 }
 
@@ -5132,10 +5357,6 @@ void UpdateDrawFrame(void) {
   time += GetFrameTime();
 }
 
-float randomFloat(void) {
-  return (float)rand() / (float)RAND_MAX;
-}
-
 int main(void) {
   initRaylib();
   initMouse();
@@ -5149,6 +5370,8 @@ int main(void) {
   initAsteroids();
   initBackgroundAsteroid();
   initMusic();
+
+  memset(particles, 0, sizeof(particles));
 
   initBossBallResources();
 
