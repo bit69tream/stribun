@@ -2914,6 +2914,66 @@ void bossBallDeactivateWeapon(int i) {
   bossBall.weapons[i].isDeactivated = true;
 }
 
+
+typedef struct {
+  union {
+    struct {
+      Vector2 topLeft;
+      Vector2 topRight;
+      Vector2 bottomRight;
+      Vector2 bottomLeft;
+    };
+    Vector2 points[4];
+  };
+} RectanglePoints;
+
+RectanglePoints translateIntoPoints(const Rectangle rect,
+                                    const float angle) {
+  const Vector2 halfSize = {rect.width * 0.5f, rect.height * 0.5f};
+
+  const Vector2 topLeft = {-halfSize.x, -halfSize.y};
+  const Vector2 topRight = {+halfSize.x, -halfSize.y};
+  const Vector2 bottomRight = {+halfSize.x, +halfSize.y};
+  const Vector2 bottomLeft = {-halfSize.x, +halfSize.y};
+
+  const Vector2 pos = {rect.x, rect.y};
+  const float a = angle * DEG2RAD;
+
+  return (RectanglePoints) {
+    .topLeft = Vector2Add(pos, Vector2Rotate(topLeft, a)),
+    .topRight = Vector2Add(pos, Vector2Rotate(topRight, a)),
+    .bottomRight = Vector2Add(pos, Vector2Rotate(bottomRight, a)),
+    .bottomLeft = Vector2Add(pos, Vector2Rotate(bottomLeft, a)),
+  };
+}
+
+bool checkRectangleCollision1(const Vector2 centerA, const RectanglePoints a,
+                              const RectanglePoints b) {
+  for (int i = 0; i < 4; i++) {
+    Vector2 start = centerA;
+    Vector2 end = a.points[i];
+
+    for (int k = 0; k < 4; k++) {
+      int kn = (k + 1) % 4;
+
+      if (CheckCollisionLines(start, end,
+                              b.points[k], b.points[kn],
+                              NULL)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+bool checkRectangleCollision(const Vector2 centerA, const RectanglePoints a,
+                             const Vector2 centerB, const RectanglePoints b) {
+  return
+    checkRectangleCollision1(centerA, a, b) ||
+    checkRectangleCollision1(centerB, b, a);
+}
+
 void checkSquaredProjectileCollision(int i) {
   Rectangle proj = {
     .x = projectiles[i].origin.x,
@@ -2959,8 +3019,40 @@ void checkSquaredProjectileCollision(int i) {
     return;
   }
 
+  if (projectiles[i].willBeDestroyed) {
+    return;
+  }
+
   if (!projectiles[i].isHurtfulForBoss) {
     return;
+  }
+
+  RectanglePoints a =
+    translateIntoPoints((Rectangle) {projectiles[i].origin.x, projectiles[i].origin.y,
+                                     projectiles[i].size.x, projectiles[i].size.y},
+      projectiles[i].angle);
+
+  for (int j = 0; j < PROJECTILES_MAX; j++) {
+    if (j == i ||
+        projectiles[j].homesOntoPlayer != true ||
+        projectiles[j].isHurtfulForPlayer != true ||
+        projectiles[j].type != PROJECTILE_SQUARED ||
+        projectiles[j].willBeDestroyed ||
+        projectiles[i].willBeDestroyed) {
+      continue;
+    }
+
+    RectanglePoints b =
+      translateIntoPoints((Rectangle) {projectiles[j].origin.x, projectiles[j].origin.y,
+                                       projectiles[j].size.x, projectiles[j].size.y},
+        projectiles[j].angle);
+
+    if (checkRectangleCollision(projectiles[i].origin, a,
+                                projectiles[j].origin, b)) {
+      projectiles[i].willBeDestroyed = true;
+      projectiles[j].willBeDestroyed = true;
+      return;
+    }
   }
 
   switch (currentBoss) {
