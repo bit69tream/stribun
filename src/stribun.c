@@ -3567,7 +3567,6 @@ void initPlayer(void) {
     .isInvincible = false,
     .health = MAX_PLAYER_HEALTH,
     .bulletSpread = 1,
-    .perks = PERK_MORE_BULLETS,
   };
 }
 
