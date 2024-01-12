@@ -61,11 +61,14 @@
     <canvas class=emscripten id=canvas oncontextmenu=event.preventDefault() tabindex=-1></canvas>
     <p id="output" />
     <script>
-      addEventListener("resize", (event) => {
+      function resizeCanvasToWindowSize() {
           var canvas = document.getElementById('canvas');
           canvas.width = window.innerWidth;
           canvas.height = window.innerHeight;
-      });
+      }
+
+      addEventListener("resize", resizeCanvasToWindowSize);
+      addEventListener("onload", resizeCanvasToWindowSize);
 
       var Module = {
           print: (function() {
