@@ -34,52 +34,58 @@
     <link rel="shortcut icon" href="https://www.raylib.com/favicon.ico">
 
     <style>
-        body { margin: 0px; }
-        canvas.emscripten { border: 0px none; background-color: black; }
+      body { margin: 0px; }
+      canvas.emscripten { border: 0px none; background-color: black; }
     </style>
     <script type='text/javascript' src="https://cdn.jsdelivr.net/gh/eligrey/FileSaver.js/dist/FileSaver.min.js"> </script>
     <script type='text/javascript'>
-        function saveFileFromMEMFSToDisk(memoryFSname, localFSname)     // This can be called by C/C++ code
-        {
-            var isSafari = false; // Not supported, navigator.userAgent access is being restricted
-            //var isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-            var data = FS.readFile(memoryFSname);
-            var blob;
+      function saveFileFromMEMFSToDisk(memoryFSname, localFSname)     // This can be called by C/C++ code
+      {
+          var isSafari = false; // Not supported, navigator.userAgent access is being restricted
+          //var isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+          var data = FS.readFile(memoryFSname);
+          var blob;
 
-            if (isSafari) blob = new Blob([data.buffer], { type: "application/octet-stream" });
-            else blob = new Blob([data.buffer], { type: "application/octet-binary" });
+          if (isSafari) blob = new Blob([data.buffer], { type: "application/octet-stream" });
+          else blob = new Blob([data.buffer], { type: "application/octet-binary" });
 
-            // NOTE: SaveAsDialog is a browser setting. For example, in Google Chrome,
-            // in Settings/Advanced/Downloads section you have a setting:
-            // 'Ask where to save each file before downloading' - which you can set true/false.
-            // If you enable this setting it would always ask you and bring the SaveAsDialog
-            saveAs(blob, localFSname);
-        }
+          // NOTE: SaveAsDialog is a browser setting. For example, in Google Chrome,
+          // in Settings/Advanced/Downloads section you have a setting:
+          // 'Ask where to save each file before downloading' - which you can set true/false.
+          // If you enable this setting it would always ask you and bring the SaveAsDialog
+          saveAs(blob, localFSname);
+      }
     </script>
-    </head>
-    <body>
-        <canvas class=emscripten id=canvas oncontextmenu=event.preventDefault() tabindex=-1></canvas>
-        <p id="output" />
-        <script>
-            var Module = {
-                print: (function() {
-                    var element = document.getElementById('output');
-                    if (element) element.value = ''; // clear browser cache
-                    return function(text) {
-                        if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
-                        console.log(text);
-                        if (element) {
-                          element.value += text + "\n";
-                          element.scrollTop = element.scrollHeight; // focus on bottom
-                        }
-                    };
-                })(),
-                canvas: (function() {
-                    var canvas = document.getElementById('canvas');
-                    return canvas;
-                })()
-            };
-        </script>
-        {{{ SCRIPT }}}
-    </body>
+  </head>
+  <body>
+    <canvas class=emscripten id=canvas oncontextmenu=event.preventDefault() tabindex=-1></canvas>
+    <p id="output" />
+    <script>
+      addEventListener("resize", (event) => {
+          var canvas = document.getElementById('canvas');
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
+      });
+
+      var Module = {
+          print: (function() {
+              var element = document.getElementById('output');
+              if (element) element.value = ''; // clear browser cache
+              return function(text) {
+                  if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
+                  console.log(text);
+                  if (element) {
+                      element.value += text + "\n";
+                      element.scrollTop = element.scrollHeight; // focus on bottom
+                  }
+              };
+          })(),
+          canvas: (function() {
+              var canvas = document.getElementById('canvas');
+              return canvas;
+          })()
+      };
+    </script>
+    {{{ SCRIPT }}}
+  </body>
 </html>
