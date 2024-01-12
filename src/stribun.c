@@ -18,6 +18,7 @@
 #if defined(PLATFORM_WEB)
 #define CUSTOM_MODAL_DIALOGS
 #include <emscripten/emscripten.h>
+#include <emscripten/html5.h>
 #endif
 
 #define FLOAT_MAX 340282346638528859811704183484516925440.0f
