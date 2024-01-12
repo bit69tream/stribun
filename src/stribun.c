@@ -513,8 +513,6 @@ static int asteroidsLen = 0;
 static Vector2 mouseCursor = {0};
 static Player player = {0};
 
-static float time = 0;
-
 static Sound playerDeathSound = {0};
 static Sound playerHealSound = {0};
 
@@ -980,7 +978,7 @@ void bossMarineAttack(void) {
 
   switch (bossMarine.currentAttack) {
   case BOSS_MARINE_SINUS_SHOOTING: {
-    bossMarine.weaponAngleOffset = sin(time * 4) * 30 * bossMarine.horizontalFlip;
+    bossMarine.weaponAngleOffset = sin(GetTime() * 4) * 30 * bossMarine.horizontalFlip;
     bossMarineUpdateWeapon();
 
     bossMarineShoot(0.3f, 0.04f, 0, &bossMarineGunshotSound, 10, false, MAROON, GOLD);
@@ -1599,8 +1597,10 @@ void updatePlayerPosition(void) {
 void preRenderBackground(bool dom) {
   float domv = dom ? 1.0f : 0.0f;
 
+  float t = GetTime();
+
   SetShaderValue(stars, starsDom, &domv, SHADER_UNIFORM_FLOAT);
-  SetShaderValue(stars, starsTime, &time, SHADER_UNIFORM_FLOAT);
+  SetShaderValue(stars, starsTime, &t, SHADER_UNIFORM_FLOAT);
 
   BeginTextureMode(backgroundTexture); {
     BeginBlendMode(BLEND_ALPHA); {
@@ -1822,23 +1822,27 @@ static int dashResetShaderColor = 0;
 void renderPlayerTexture(void) {
   int thrusters = whichThrustersToUse();
 
-  BeginTextureMode(playerAuraTexture); {
-    ClearBackground(BLANK);
+  {
+    float t = GetTime();
 
-    SetShaderValue(playerAuraShader,
-                   playerAuraTime,
-                   &time,
-                   SHADER_UNIFORM_FLOAT);
+    BeginTextureMode(playerAuraTexture); {
+      ClearBackground(BLANK);
 
-    BeginShaderMode(playerAuraShader); {
-      DrawTexturePro(sprites,
-                     playerAuraRect,
-                     (Rectangle) {0, 0, PLAYER_AURA_WIDTH, PLAYER_AURA_HEIGHT},
-                     Vector2Zero(),
-                     0,
-                     WHITE);
-    }; EndShaderMode();
-  }; EndTextureMode();
+      SetShaderValue(playerAuraShader,
+                     playerAuraTime,
+                     &t,
+                     SHADER_UNIFORM_FLOAT);
+
+      BeginShaderMode(playerAuraShader); {
+        DrawTexturePro(sprites,
+                       playerAuraRect,
+                       (Rectangle) {0, 0, PLAYER_AURA_WIDTH, PLAYER_AURA_HEIGHT},
+                       Vector2Zero(),
+                       0,
+                       WHITE);
+      }; EndShaderMode();
+    }; EndTextureMode();
+  }
 
   float health = (float)player.health / (float)MAX_PLAYER_HEALTH;
 
@@ -1931,7 +1935,7 @@ void renderPlayer(void) {
   float alpha = 1.0;
 
   if (player.iframeTimer > 0.0f) {
-    float a = sinf(time * 40) * .5 + 1.;
+    float a = sinf(GetTime() * 40) * .5 + 1.;
     alpha = Remap(a, 0, 1, 0.7, 1.0);
   }
 
@@ -2133,9 +2137,11 @@ Vector2 arenaTopLeft = {0};
 Vector2 arenaBottomRight = {0};
 
 void renderArenaBorder(void) {
+  float t = GetTime();
+
   SetShaderValue(arenaBorderShader,
                  arenaBorderTime,
-                 &time,
+                 &t,
                  SHADER_UNIFORM_FLOAT);
 
   Vector2 arenaSize = Vector2Subtract(arenaBottomRight, arenaTopLeft);
@@ -2364,9 +2370,11 @@ void renderBoss(void) {
 }
 
 void renderLaserIntoTexture(void) {
+  float t = GetTime();
+
   SetShaderValue(laserShader,
                  laserShaderTime,
-                 &time,
+                 &t,
                  SHADER_UNIFORM_FLOAT);
 
   BeginTextureMode(laserTexture); {
@@ -2503,7 +2511,7 @@ void renderPlayerHealthBar(void) {
                  },
                  rect,
                  (Vector2) {w*0.5f, h*0.5f},
-                 sin(time * 10) * 50 * player.iframeTimer,
+                 sin(GetTime() * 10) * 50 * player.iframeTimer,
                  WHITE);
 }
 
@@ -2586,7 +2594,7 @@ void renderBossHealthBar(void) {
                      .x = (bossMarineHeadRect.width * mul) / 2,
                      .y = (bossMarineHeadRect.height * mul) / 2,
                    },
-                   sin(time * 2) * 15,
+                   sin(GetTime() * 2) * 15,
                    WHITE);
   } break;
   case BOSS_BALL: {
@@ -2699,7 +2707,7 @@ void renderBossInfo(void) {
                      .x = (headRect.width * mul) / 2,
                      .y = (headRect.height * mul) / 2,
                    },
-                   sin(time) * 15,
+                   sin(GetTime()) * 15,
                    WHITE);
   } break;
   case BOSS_BALL: {
@@ -2722,7 +2730,7 @@ void renderBossInfo(void) {
         if (c.hit && c.distance < FLOAT_MAX) {
           DrawModelEx(bossBallModel,
                       c.point,
-                      (Vector3) {0, 1, 0}, time * 15,
+                      (Vector3) {0, 1, 0}, GetTime() * 15,
                       Vector3Scale(Vector3One(), 5),
                       WHITE);
         }
@@ -3652,8 +3660,6 @@ void initSoundEffects(void) {
 }
 
 void initShaders(void) {
-  time = 0;
-
   {
 #define NEBULAE_NOISE_DOWNSCALE_FACTOR 1
 
@@ -4771,7 +4777,7 @@ void renderMusicAuthor(void) {
     .y = (float)GetScreenHeight() - size.y - 10,
   };
 
-  float alpha = sin(time) * cos(time) + 0.5f;
+  float alpha = sin(GetTime()) * cos(GetTime()) + 0.5f;
 
   DrawTextPro(f,
               text,
@@ -5502,8 +5508,6 @@ void UpdateDrawFrame(void) {
     updateAndRenderStats();
     break;
   }
-
-  time += GetFrameTime();
 }
 
 #ifdef PLATFORM_WEB
