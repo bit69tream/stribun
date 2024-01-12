@@ -5458,7 +5458,20 @@ void updateAndRenderStats(void) {
   } EndDrawing();
 }
 
+static bool canvasSizeChanged = false;
+
 void UpdateDrawFrame(void) {
+  if (canvasSizeChanged) {
+#ifdef PLATFORM_WEB
+    double w = 0;
+    double h = 0;
+
+    emscripten_get_element_css_size("#canvas", &w, &h);
+    SetWindowSize(w, h);
+    canvasSizeChanged = false;
+#endif
+  }
+
   if (IsWindowResized()) {
     adjustBossBallTargetScreen();
   }
@@ -5492,6 +5505,17 @@ void UpdateDrawFrame(void) {
   time += GetFrameTime();
 }
 
+#ifdef PLATFORM_WEB
+EM_BOOL canvasSizeChangedCallback(int type, const EmscriptenUiEvent *event, void *user_data) {
+  (void) type;
+  (void) event;
+  (void) user_data;
+
+  canvasSizeChanged = true;
+  return 0;
+}
+#endif
+
 int main(void) {
   initRaylib();
   initMouse();
@@ -5521,6 +5545,7 @@ int main(void) {
   SetShapesTexture(t, (Rectangle){ 0.0f, 0.0f, 1.0f, 1.0f });
 
 #if defined(PLATFORM_WEB)
+  emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 0, canvasSizeChangedCallback);
   emscripten_set_main_loop(UpdateDrawFrame, 60, 1);
 #else
   SetTargetFPS(60);
