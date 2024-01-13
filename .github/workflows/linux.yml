@@ -46,7 +46,7 @@ jobs:
     - name: Generate Artifacts
       run: |
         ls ${{ env.PROJECT_NAME }}
-        cp -v ${{ env.PROJECT_NAME }}/build/${{ env.PROJECT_NAME }} ${{ env.PROJECT_RELEASE_PATH }}
+        cp -v ${{ env.PROJECT_NAME }}/build/${{ env.PROJECT_NAME }}.exe ${{ env.PROJECT_RELEASE_PATH }}
         cp -var ${{ env.PROJECT_NAME }}/assets ${{ env.PROJECT_RELEASE_PATH }}
         cp -v ${{ env.PROJECT_NAME }}/README.md ${{ env.PROJECT_RELEASE_PATH }}
         cp -v ${{ env.PROJECT_NAME }}/LICENSE ${{ env.PROJECT_RELEASE_PATH }}
