@@ -51,14 +51,17 @@ jobs:
         cp -v ${{ env.PROJECT_NAME }}/README.md ${{ env.PROJECT_RELEASE_PATH }}
         cp -v ${{ env.PROJECT_NAME }}/LICENSE ${{ env.PROJECT_RELEASE_PATH }}
         ls ${{ env.PROJECT_RELEASE_PATH }}
-        7z a ./${{ env.PROJECT_RELEASE_PATH }}.zip ./${{ env.PROJECT_RELEASE_PATH }}
+        # 7z a ./${{ env.PROJECT_RELEASE_PATH }}.zip ./${{ env.PROJECT_RELEASE_PATH }}
 
     # Issue: Double zip: https://github.com/actions/upload-artifact/issues/39
     - name: Upload Artifacts
       uses: actions/upload-artifact@v3
+      # with:
+      #   name: ${{ env.PROJECT_RELEASE_PATH }}.zip
+      #   path: ./${{ env.PROJECT_RELEASE_PATH }}.zip
       with:
-        name: ${{ env.PROJECT_RELEASE_PATH }}.zip
-        path: ./${{ env.PROJECT_RELEASE_PATH }}.zip
+        name: ${{ env.PROJECT_RELEASE_PATH }}
+        path: ${{ env.PROJECT_RELEASE_PATH }}
 
     # Alternative: https://github.com/marketplace/actions/gh-release
     - name: Upload Artifact to Release
