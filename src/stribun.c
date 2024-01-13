@@ -2370,7 +2370,7 @@ void renderBoss(void) {
 }
 
 void renderLaserIntoTexture(void) {
-  float t = GetTime();
+  float t = GetTime() * 69.0f * 0.5f;
 
   SetShaderValue(laserShader,
                  laserShaderTime,
@@ -2406,12 +2406,22 @@ void renderLasers(void) {
 
     angle -= 90;
 
-    DrawTexturePro(laserTexture.texture,
-                   (Rectangle) {0, 0, bossBall.weapons[i].laserLength, LASER_HEIGHT},
-                   (Rectangle) {pos.x, pos.y, bossBall.weapons[i].laserLength, LASER_HEIGHT},
-                   (Vector2) {0, LASER_HEIGHT / 2.0f},
-                   angle,
-                   WHITE);
+#define LASER_POINTER_HEIGHT 3.6f
+
+    if (bossBall.weapons[i].chargeLevel > 0.0f && bossBall.weapons[i].chargeLevel <= 1.0f) {
+      DrawRectanglePro((Rectangle) {pos.x, pos.y, LASER_WIDTH, LASER_POINTER_HEIGHT},
+                       (Vector2) {0, LASER_POINTER_HEIGHT / 2.0f},
+                       angle,
+                       ColorAlpha(RED, bossBall.weapons[i].chargeLevel));
+    } else {
+      DrawTexturePro(laserTexture.texture,
+                     (Rectangle) {0, 0, bossBall.weapons[i].laserLength, LASER_HEIGHT},
+                     (Rectangle) {pos.x, pos.y, bossBall.weapons[i].laserLength, LASER_HEIGHT},
+                     (Vector2) {0, LASER_HEIGHT / 2.0f},
+                     angle,
+                     WHITE);
+    }
+
   }
 }
 
