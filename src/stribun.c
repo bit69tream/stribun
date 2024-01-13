@@ -134,15 +134,14 @@ typedef struct {
 
   float dashReactivationEffectAlpha;
 
-  int bulletSpread;
-
   bool isInvincible;
   float iframeTimer;
 
-  Perk perks;
   int healthStolen;
   float healTimer;
 } Player;
+
+static Perk playerPerks = 0;
 
 typedef struct {
   float time;
@@ -580,11 +579,11 @@ static Particle particles[PARTICLES_MAX] = {0};
 int maxPlayerHealth(void) {
   int base = 8;
 
-  if (player.perks & PERK_GLASS_CANON) {
+  if (playerPerks & PERK_GLASS_CANON) {
     base /= 4;
   }
 
-  if (player.perks & PERK_DOUBLE_HP) {
+  if (playerPerks & PERK_DOUBLE_HP) {
     base *= 2;
   }
 
@@ -759,7 +758,7 @@ float playerLookingAngle(void) {
 }
 
 void bossStealHealth(int bossHealth, int bossMaxHealth) {
-  if ((player.perks & PERK_VAMPIRISM) == 0) {
+  if ((playerPerks & PERK_VAMPIRISM) == 0) {
     return;
   }
 
@@ -838,7 +837,7 @@ void bossMarineCheckCollisions(bool sendAsteroidsFlying) {
       Vector2 offset = Vector2Rotate((Vector2){0, offsetDistance}, angle);
       player.position = Vector2Add(player.position, offset);
 
-      if (player.perks & PERK_OMINOUS_AURA) {
+      if (playerPerks & PERK_OMINOUS_AURA) {
         bossMarine.health -= 1;
       }
     }
@@ -1156,7 +1155,7 @@ void tryDashing(void) {
   float dashAngle = Vector2Angle(up, direction);
 
   float distance = PLAYER_DASH_DISTANCE;
-  if (player.perks & PERK_STRONG_DASH) {
+  if (playerPerks & PERK_STRONG_DASH) {
     distance *= 1.5;
   }
 
@@ -1181,8 +1180,9 @@ void tryFiringAShot(void) {
     return;
   }
 
-  int spread = player.bulletSpread;
-  if (player.perks & PERK_MORE_SPREAD) {
+  #define PLAYER_BASE_BULLET_SPREAD 2
+  int spread = 2;
+  if (playerPerks & PERK_MORE_SPREAD) {
     spread = 20;
   }
 
@@ -1192,7 +1192,7 @@ void tryFiringAShot(void) {
   int damage = PLAYER_PROJECTILE_BASE_DAMAGE;
   float multX = 1.5f;
   float multY = 3.0f;
-  if (player.perks & PERK_RANDOM_SIZED_BULLETS) {
+  if (playerPerks & PERK_RANDOM_SIZED_BULLETS) {
     multX = (float)GetRandomValue(10, 20) / 5.0f;
     multY = (float)GetRandomValue(20, 30) / 5.0f;
 
@@ -1200,40 +1200,40 @@ void tryFiringAShot(void) {
     damage = ceilf(area / 5.0f);
   }
 
-  if (player.perks & PERK_LESS_HP_MORE_DAMAGE) {
+  if (playerPerks & PERK_LESS_HP_MORE_DAMAGE) {
     float mult = 1.0f - ((float)player.health / MAX_PLAYER_HEALTH);
     multX += mult;
     multY += mult;
   }
 
-  if (player.perks & PERK_DOUBLE_DAMAGE) {
+  if (playerPerks & PERK_DOUBLE_DAMAGE) {
     damage *= 2;
   }
 
-  if (player.perks & PERK_LESS_HP_MORE_DAMAGE) {
+  if (playerPerks & PERK_LESS_HP_MORE_DAMAGE) {
     float hp = player.health / MAX_PLAYER_HEALTH;
     hp = 1.0 - hp;
     damage += damage * hp;
   }
 
   float speed = PLAYER_PROJECTILE_SPEED;
-  if (player.perks & PERK_SLOW_BUT_STEADY) {
+  if (playerPerks & PERK_SLOW_BUT_STEADY) {
     damage *= 2;
     speed /= 2;
   }
 
-  if (player.perks & PERK_FAST_BULLETS) {
+  if (playerPerks & PERK_FAST_BULLETS) {
     speed *= 2;
   }
 
-  if (player.perks & PERK_GLASS_CANON) {
+  if (playerPerks & PERK_GLASS_CANON) {
     damage *= 5;
   }
 
   Color inside = (Color) {82, 85, 156, 255};
   Color outside = (Color) {57, 60, 115, 255};
 
-  if (player.perks & PERK_HOMING) {
+  if (playerPerks & PERK_HOMING) {
     outside = inside;
     inside = BLACK;
   }
@@ -1247,7 +1247,7 @@ void tryFiringAShot(void) {
   Vector2 delta = Vector2Rotate(Vector2Scale(lookingDirection, speed),
                                 a * DEG2RAD);
 
-  if (player.perks & PERK_MORE_BULLETS) {
+  if (playerPerks & PERK_MORE_BULLETS) {
     Projectile *newProjectile1 = push_projectile();
 
     if (newProjectile1 == NULL) {
@@ -1320,7 +1320,7 @@ void tryFiringAShot(void) {
   }
 
   float cooldown = PLAYER_FIRE_COOLDOWN;
-  if (player.perks & PERK_FAST_BULLETS) {
+  if (playerPerks & PERK_FAST_BULLETS) {
     cooldown /= 2;
   }
 
@@ -1506,7 +1506,7 @@ void processCollisions(void) {
         Vector2 offset = Vector2Rotate((Vector2) {0, offsetDistance}, angle * DEG2RAD);
 
         if (player.isInvincible) {
-          if (player.perks & PERK_OMINOUS_AURA) {
+          if (playerPerks & PERK_OMINOUS_AURA) {
 
             spawnAsteroidParticles(i);
 
@@ -1567,7 +1567,7 @@ void processCollisions(void) {
     if (CheckCollisionCircleRec(rotatedRelativePlayerPosition, PLAYER_HITBOX_RADIUS, laser) &&
         player.iframeTimer <= 0.0f) {
       PlaySound(hit);
-      player.health -= 1 * (player.perks & PERK_MORE_BULLETS ? 2 : 1);
+      player.health -= 1 * (playerPerks & PERK_MORE_BULLETS ? 2 : 1);
       player.iframeTimer = 0.4f;
     }
   }
@@ -1939,7 +1939,7 @@ void renderPlayer(void) {
     alpha = Remap(a, 0, 1, 0.7, 1.0);
   }
 
-  if (player.perks & PERK_OMINOUS_AURA) {
+  if (playerPerks & PERK_OMINOUS_AURA) {
     DrawTexturePro(playerAuraTexture.texture,
                    (Rectangle) {
                      .x = 0,
@@ -1985,7 +1985,7 @@ void renderPlayer(void) {
 void renderDashTrails(void) {
   Vector4 color = ColorNormalize(SKYBLUE);
 
-  if (player.perks & PERK_STRONG_DASH) {
+  if (playerPerks & PERK_STRONG_DASH) {
     color = ColorNormalize(RED);
   }
 
@@ -2885,7 +2885,7 @@ void checkRegularProjectileCollision(int i) {
 
     if (player.iframeTimer == 0.0f) {
       PlaySound(hit);
-      player.health -= projectiles[i].damage * (player.perks & PERK_MORE_BULLETS ? 2 : 1);
+      player.health -= projectiles[i].damage * (playerPerks & PERK_MORE_BULLETS ? 2 : 1);
       player.iframeTimer = 0.3f;
     }
     return;
@@ -3026,7 +3026,7 @@ void checkSquaredProjectileCollision(int i) {
 
     if (player.iframeTimer == 0.0f) {
       PlaySound(hit);
-      player.health -= projectiles[i].damage * (player.perks & PERK_MORE_BULLETS ? 2 : 1);
+      player.health -= projectiles[i].damage * (playerPerks & PERK_MORE_BULLETS ? 2 : 1);
       player.iframeTimer = 0.3f;
     }
 
@@ -3210,7 +3210,7 @@ void updateProjectiles(void) {
       projectiles[i].angle = atan2(projectiles[i].delta.y, projectiles[i].delta.x) * RAD2DEG + 90;
     }
 
-    if ((player.perks & PERK_HOMING) &&
+    if ((playerPerks & PERK_HOMING) &&
         projectiles[i].isHurtfulForBoss) {
       Vector2 bossPosition = Vector2Zero();
 
@@ -3447,10 +3447,10 @@ void bossBallCheckCollisions(bool sendAsteroidsFlying) {
     player.position = Vector2Add(player.position, asteroidOffset);
 
     if ((player.iframeTimer <= 0.0f) &&
-        ((player.perks & PERK_OMINOUS_AURA) == 0)) {
+        ((playerPerks & PERK_OMINOUS_AURA) == 0)) {
       PlaySound(hit);
 
-      player.health -= 2 * (player.perks & PERK_MORE_BULLETS ? 2 : 1);
+      player.health -= 2 * (playerPerks & PERK_MORE_BULLETS ? 2 : 1);
       player.iframeTimer = 0.4f;
     }
   }
@@ -3578,8 +3578,6 @@ void initMouse(void) {
 
 void initPlayer(void) {
   memset(&player, 0, sizeof(player));
-  memset(&playerStats, 0, sizeof(playerStats));
-
   memset(&dashTrails, 0, sizeof(dashTrails));
 
   player = (Player) {
@@ -3589,7 +3587,6 @@ void initPlayer(void) {
     },
     .isInvincible = false,
     .health = MAX_PLAYER_HEALTH,
-    .bulletSpread = 1,
   };
 }
 
@@ -4531,7 +4528,7 @@ void bossBallCheckDisconnectedWeaponCollisions(void) {
 
       player.position = Vector2Add(player.position, offset);
 
-      if (player.perks & PERK_OMINOUS_AURA) {
+      if (playerPerks & PERK_OMINOUS_AURA) {
         bossBallDeactivateWeapon(w);
       }
     }
@@ -5199,7 +5196,7 @@ void playerGiveOneRandomPerk(void) {
   X_PERKS
 #undef X
 
-  if (player.perks == allPerks) {
+  if (playerPerks == allPerks) {
     return;
   }
 
@@ -5215,9 +5212,9 @@ void playerGiveOneRandomPerk(void) {
   do {
     int i = GetRandomValue(0, perks_len - 1);
     newPerk = perks[i];
-  } while (player.perks & newPerk);
+  } while (playerPerks & newPerk);
 
-  player.perks |= newPerk;
+  playerPerks |= newPerk;
 
   if (firstNewPerk > 0) {
     secondNewPerk = newPerk;
@@ -5370,11 +5367,13 @@ void updateAndRenderStats(void) {
     switch (currentBoss) {
     case BOSS_MARINE: {
       introductionSkipTimer = 0.1f;
+
       gameState = GAME_BOSS_INTRODUCTION;
       currentBoss = BOSS_BALL;
+
       introductionStage = BOSS_INTRODUCTION_BEGINNING;
-      player.health = MAX_PLAYER_HEALTH;
-      player.healthStolen = 0;
+
+      initPlayer();
       playerStats.bossTime = 0.0f;
     } break;
     case BOSS_BALL: {
@@ -5548,6 +5547,9 @@ int main(void) {
   initAsteroids();
   initBackgroundAsteroid();
   initMusic();
+
+  memset(&playerStats, 0, sizeof(playerStats));
+  playerPerks = 0;
 
   memset(particles, 0, sizeof(particles));
 
