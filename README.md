@@ -3,6 +3,21 @@ A space shooter inspired by games like Enter The Gungeon, Furi and Nuclear Thron
 
 ![$(STRIBUN)](logo.png "$(STRIBUN)")
 
+## Building from source
+### Desktop
+```sh
+$ cmake -B build
+$ cmake --build build
+```
+
+### Web
+```sh
+$ mkdir build-web
+$ cd build-web
+$ emcmake cmake .. -DPLATFORM=Web -DCMAKE_BUILD_TYPE=Release
+$ emmake make
+```
+
 ### Controls
 
  - <kbd>W</kbd>/<kbd>A</kbd>/<kbd>S</kbd>/<kbd>D</kbd> or <kbd>E</kbd>/<kbd>S</kbd>/<kbd>D</kbd>/<kbd>F</kbd> - movement

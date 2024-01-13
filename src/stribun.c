@@ -3336,8 +3336,8 @@ void initBossBallResources(void) {
   bossBallCamera.fovy = 45.0f;
   bossBallCamera.projection = CAMERA_PERSPECTIVE;
 
-  bossBallLightingShader = LoadShader(TextFormat("resources/lighting-%d.vert", GLSL_VERSION),
-                                      TextFormat("resources/lighting-%d.frag", GLSL_VERSION));
+  bossBallLightingShader = LoadShader(TextFormat("assets/lighting-%d.vert", GLSL_VERSION),
+                                      TextFormat("assets/lighting-%d.frag", GLSL_VERSION));
   bossBallLightingShader.locs[SHADER_LOC_VECTOR_VIEW] =
     GetShaderLocation(bossBallLightingShader, "viewPos");
 
@@ -3353,14 +3353,14 @@ void initBossBallResources(void) {
                 WHITE,
                 bossBallLightingShader);
 
-  bossBallTexture = LoadTexture("resources/ball.png");
+  bossBallTexture = LoadTexture("assets/ball.png");
 
-  bossBallModel = LoadModel("resources/ball.obj");
+  bossBallModel = LoadModel("assets/ball.obj");
 
   SetMaterialTexture(&bossBallModel.materials[0], MATERIAL_MAP_ALBEDO, bossBallTexture);
   bossBallModel.materials[0].shader = bossBallLightingShader;
 
-  bossBallMusic = LoadMusicStream("resources/reddream.xm");
+  bossBallMusic = LoadMusicStream("assets/reddream.xm");
   SetMusicVolume(bossBallMusic, 0.5f);
 }
 
@@ -3490,7 +3490,7 @@ void initBossBall(void) {
     };
 
     if (types[index] == BOSS_BALL_WEAPON_LASER) {
-      bossBall.weapons[i].soundEffect = LoadMusicStream("resources/laser.wav");
+      bossBall.weapons[i].soundEffect = LoadMusicStream("assets/laser.wav");
       SetMusicVolume(bossBall.weapons[i].soundEffect, 1.5f);
     }
 
@@ -3546,10 +3546,10 @@ void initBossMarine(void) {
 };
 
 void initMusic(void) {
-  mainMenuMusic = LoadMusicStream("resources/drozerix_-_stardust_jam.mod");
+  mainMenuMusic = LoadMusicStream("assets/drozerix_-_stardust_jam.mod");
   SetMusicVolume(mainMenuMusic, 0.6);
 
-  bossMarineMusic = LoadMusicStream("resources/once_is_not_enough.mod");
+  bossMarineMusic = LoadMusicStream("assets/once_is_not_enough.mod");
   SetMusicVolume(bossMarineMusic, 0.5);
 }
 
@@ -3623,40 +3623,40 @@ void initAsteroids(void) {
 }
 
 void initSoundEffects(void) {
-  dashSoundEffect = LoadSound("resources/dash.wav");
+  dashSoundEffect = LoadSound("assets/dash.wav");
   SetSoundVolume(dashSoundEffect, 0.3);
 
-  playerShot = LoadSound("resources/shot01.wav");
+  playerShot = LoadSound("assets/shot01.wav");
   SetSoundVolume(playerShot, 0.5);
 
-  beep = LoadSound("resources/beep.wav");
-  hit = LoadSound("resources/hit.wav");
+  beep = LoadSound("assets/beep.wav");
+  hit = LoadSound("assets/hit.wav");
   SetSoundVolume(hit, 0.7);
 
-  playerHealSound = LoadSound("resources/heal.wav");
+  playerHealSound = LoadSound("assets/heal.wav");
   /* SetSoundVolume(playerHealSound, 0.5); */
 
-  buttonFocusEffect = LoadSound("resources/hit.wav");
+  buttonFocusEffect = LoadSound("assets/hit.wav");
   SetSoundVolume(buttonFocusEffect, 0.1);
 
-  borderActivation = LoadSound("resources/border.wav");
+  borderActivation = LoadSound("assets/border.wav");
   SetSoundVolume(borderActivation, 0.3);
 
-  bossMarineShotgunSound = LoadSound("resources/shot02.wav");
-  bossMarineGunshotSound = LoadSound("resources/shot03.wav");
+  bossMarineShotgunSound = LoadSound("assets/shot02.wav");
+  bossMarineGunshotSound = LoadSound("assets/shot03.wav");
 
-  bossBallTurretSound = LoadSound("resources/shot03.wav");
+  bossBallTurretSound = LoadSound("assets/shot03.wav");
 
-  playerDeathSound = LoadSound("resources/dead.wav");
+  playerDeathSound = LoadSound("assets/dead.wav");
 
-  bossBallLaserChargingSound = LoadSound("resources/laser-charging.wav");
+  bossBallLaserChargingSound = LoadSound("assets/laser-charging.wav");
   SetSoundVolume(bossBallLaserChargingSound, 0.5);
 
-  bossBallRocketSound = LoadSound("resources/rocket.wav");
+  bossBallRocketSound = LoadSound("assets/rocket.wav");
 
-  bossBallDeath = LoadSound("resources/explosion.wav");
+  bossBallDeath = LoadSound("assets/explosion.wav");
 
-  asteroidDestructionSound = LoadSound("resources/boom.wav");
+  asteroidDestructionSound = LoadSound("assets/boom.wav");
 }
 
 void initShaders(void) {
@@ -3676,7 +3676,7 @@ void initShaders(void) {
     Vector4 arenaBorderColor0 = ColorNormalize(DARKBLUE);
     Vector4 arenaBorderColor1 = ColorNormalize(BLUE);
 
-    arenaBorderShader = LoadShader(NULL, TextFormat("resources/border-%d.frag", GLSL_VERSION));
+    arenaBorderShader = LoadShader(NULL, TextFormat("assets/border-%d.frag", GLSL_VERSION));
     arenaBorderTime = GetShaderLocation(arenaBorderShader, "time");
     SetShaderValue(arenaBorderShader,
                    GetShaderLocation(arenaBorderShader, "borderColor0"),
@@ -3696,7 +3696,7 @@ void initShaders(void) {
   {
     Vector4 dashResetGlowColor = ColorNormalize(ColorAlpha(SKYBLUE, 0.1f));
 
-    dashResetShader = LoadShader(NULL, TextFormat("resources/dash-reset-glow-%d.frag", GLSL_VERSION));
+    dashResetShader = LoadShader(NULL, TextFormat("assets/dash-reset-glow-%d.frag", GLSL_VERSION));
     dashResetShaderAlpha = GetShaderLocation(dashResetShader, "alpha");
     dashResetShaderColor = GetShaderLocation(dashResetShader, "glowColor");
 
@@ -3704,7 +3704,7 @@ void initShaders(void) {
   }
 
   {
-    stars = LoadShader(NULL, TextFormat("resources/stars-%d.frag", GLSL_VERSION));
+    stars = LoadShader(NULL, TextFormat("assets/stars-%d.frag", GLSL_VERSION));
     starsTime = GetShaderLocation(stars, "time");
 
     SetShaderValue(stars,
@@ -3716,7 +3716,7 @@ void initShaders(void) {
   }
 
   {
-    playerHealthBarShader = LoadShader(NULL, TextFormat("resources/health-bar-%d.frag", GLSL_VERSION));
+    playerHealthBarShader = LoadShader(NULL, TextFormat("assets/health-bar-%d.frag", GLSL_VERSION));
     Vector4 good = ColorNormalize((Color) {129, 73, 151, 255});
     Vector4 bad = ColorNormalize(BLACK);
 
@@ -3741,7 +3741,7 @@ void initShaders(void) {
   }
 
   {
-    playerHealthOverlayShader = LoadShader(NULL, TextFormat("resources/health-overlay-%d.frag", GLSL_VERSION));
+    playerHealthOverlayShader = LoadShader(NULL, TextFormat("assets/health-overlay-%d.frag", GLSL_VERSION));
 
     /* Vector4 good = ColorNormalize((Color) {164, 36, 40, 255}); */
     Vector4 good = ColorNormalize((Color) {129, 73, 151, 255});
@@ -3759,20 +3759,20 @@ void initShaders(void) {
 
     playerHealthOverlayHealth = GetShaderLocation(playerHealthOverlayShader, "health");
 
-    Image mask = LoadImage("resources/sprites.png");
+    Image mask = LoadImage("assets/sprites.png");
     ImageCrop(&mask, playerHealthOverlayMaskRect);
     playerHealthMaskTexture = LoadTextureFromImage(mask);
     UnloadImage(mask);
   }
 
   {
-    dashTrailShader = LoadShader(NULL, TextFormat("resources/dash-trail-%d.frag", GLSL_VERSION));
+    dashTrailShader = LoadShader(NULL, TextFormat("assets/dash-trail-%d.frag", GLSL_VERSION));
     dashTrailShaderColor = GetShaderLocation(dashTrailShader, "trailColor");
     dashTrailShaderAlpha = GetShaderLocation(dashTrailShader, "alpha");
   }
 
   {
-    pixelationShader = LoadShader(NULL, TextFormat("resources/pixelation-%d.frag", GLSL_VERSION));
+    pixelationShader = LoadShader(NULL, TextFormat("assets/pixelation-%d.frag", GLSL_VERSION));
     SetShaderValue(pixelationShader,
                    GetShaderLocation(pixelationShader, "resolution"),
                    &level,
@@ -3782,7 +3782,7 @@ void initShaders(void) {
   }
 
   {
-    laserShader = LoadShader(NULL, TextFormat("resources/laser-%d.frag", GLSL_VERSION));
+    laserShader = LoadShader(NULL, TextFormat("assets/laser-%d.frag", GLSL_VERSION));
     SetShaderValue(laserShader,
                    GetShaderLocation(laserShader, "resolution"),
                    (float[2]){LASER_WIDTH, LASER_HEIGHT},
@@ -3792,7 +3792,7 @@ void initShaders(void) {
   }
 
   {
-    playerAuraShader = LoadShader(NULL, TextFormat("resources/aura-%d.frag", GLSL_VERSION));
+    playerAuraShader = LoadShader(NULL, TextFormat("assets/aura-%d.frag", GLSL_VERSION));
     playerAuraTime = GetShaderLocation(playerAuraShader, "time");
   }
 }
@@ -3804,7 +3804,7 @@ void adjustBossBallTargetScreen(void) {
 }
 
 void initTextures(void) {
-  sprites = LoadTexture("resources/sprites.png");
+  sprites = LoadTexture("assets/sprites.png");
 
   target = LoadRenderTexture(LEVEL_WIDTH, LEVEL_HEIGHT);
 
