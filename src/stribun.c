@@ -5355,10 +5355,27 @@ char *perkName(Perk perk) {
   assert(false);
 }
 
+static bool pressedKeys[420] = {0};
+
 void updateAndRenderStats(void) {
-  if (GetKeyPressed() != KEY_NULL ||
-      IsMouseButtonPressed(MOUSE_BUTTON_LEFT) ||
-      IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+  KeyboardKey key = KEY_NULL;
+
+  if ((key = GetKeyPressed()) != KEY_NULL) {
+    pressedKeys[key] = true;
+  }
+
+  bool anyKeyReleased = false;
+  for (int i = 0; i < sizeof(pressedKeys) / sizeof(pressedKeys[0]); i++) {
+    if (pressedKeys[i] && IsKeyReleased(i)) {
+      anyKeyReleased = true;
+      memset(pressedKeys, 0, sizeof(pressedKeys));
+      break;
+    }
+  }
+
+  if (anyKeyReleased ||
+      IsMouseButtonReleased(MOUSE_BUTTON_LEFT) ||
+      IsMouseButtonReleased(MOUSE_BUTTON_RIGHT)) {
     PlaySound(beep);
 
     if (player.health == 0) {
