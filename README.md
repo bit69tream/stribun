@@ -21,35 +21,35 @@ $ emcmake cmake .. -DPLATFORM=Web -DCMAKE_BUILD_TYPE=Release
 $ emmake make
 ```
 
-### Controls
+## Controls
 
  - <kbd>W</kbd>/<kbd>A</kbd>/<kbd>S</kbd>/<kbd>D</kbd> or <kbd>E</kbd>/<kbd>S</kbd>/<kbd>D</kbd>/<kbd>F</kbd> - movement
  - <kbd>Left mouse button</kbd> - shoot
  - <kbd>Right mouse button</kbd> - dash
 
-### Screenshots
+## Screenshots
 
 ![uziel battle](screenshots/uziel.gif)
 ![rigor battle](screenshots/rigor.gif)
 
-### Developers
+## Developers
 
  - bit69tream - Everything 😎
 
-### Links
+## Links
  - itch.io Release: https://bit69tream.itch.io/stribun
 
-### Used Resources
+## Used Resources
 
-#### Sound Effects
+### Sound Effects
  - [Shapeforms Audio Free Sound Effects](https://shapeforms.itch.io/shapeforms-audio-free-sfx)
 
-#### Music
+### Music
  - Main menu - [Drozerix - Stardust Jam](https://modarchive.org/module.php?201039) Public Domain
  - Uziel Enkidas - [once is not enough](https://modarchive.org/module.php?170002) [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
  - Rigor Mortis - [Red Dream](https://modarchive.org/module.php?170064) Public Domain
 
-### License
+## License
 
 This game sources are licensed under an unmodified zlib/libpng license, which is an OSI-certified, BSD-like license that allows static linking with closed source software. Check [LICENSE](LICENSE) for further details.
 
