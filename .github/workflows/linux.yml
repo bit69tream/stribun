@@ -32,7 +32,7 @@ jobs:
     - name: Setup Environment
       run: |
         sudo apt-get update -qq
-        sudo apt-get install -y --no-install-recommends cmake
+        sudo apt-get install -y --no-install-recommends libglfw3 libglfw3-dev libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxext-dev libxfixes-dev cmake
         mkdir ${{ env.PROJECT_RELEASE_PATH }}
         ls
       shell: bash
@@ -46,7 +46,7 @@ jobs:
     - name: Generate Artifacts
       run: |
         ls ${{ env.PROJECT_NAME }}
-        cp -v ${{ env.PROJECT_NAME }}/build/${{ env.PROJECT_NAME }}.exe ${{ env.PROJECT_RELEASE_PATH }}
+        cp -v ${{ env.PROJECT_NAME }}/build/${{ env.PROJECT_NAME }} ${{ env.PROJECT_RELEASE_PATH }}
         cp -var ${{ env.PROJECT_NAME }}/assets ${{ env.PROJECT_RELEASE_PATH }}
         cp -v ${{ env.PROJECT_NAME }}/README.md ${{ env.PROJECT_RELEASE_PATH }}
         cp -v ${{ env.PROJECT_NAME }}/LICENSE ${{ env.PROJECT_RELEASE_PATH }}
