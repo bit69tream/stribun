@@ -837,7 +837,8 @@ void bossMarineCheckCollisions(bool sendAsteroidsFlying) {
       Vector2 offset = Vector2Rotate((Vector2){0, offsetDistance}, angle);
       player.position = Vector2Add(player.position, offset);
 
-      if (playerPerks & PERK_OMINOUS_AURA) {
+      if (playerPerks & PERK_OMINOUS_AURA &&
+          player.isInvincible) {
         bossMarine.health -= 1;
       }
     }
@@ -3452,6 +3453,8 @@ void bossBallCheckCollisions(bool sendAsteroidsFlying) {
 
       player.health -= 2 * (playerPerks & PERK_MORE_BULLETS ? 2 : 1);
       player.iframeTimer = 0.4f;
+    } else if (playerPerks & PERK_OMINOUS_AURA) {
+      bossBall.health -= 2;
     }
   }
 }
