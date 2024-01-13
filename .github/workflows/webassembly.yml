@@ -65,7 +65,7 @@ jobs:
         cp -v ${{ env.PROJECT_NAME }}/LICENSE ${{ env.PROJECT_RELEASE_PATH }}/LICENSE
         ls ${{ env.PROJECT_RELEASE_PATH }}
         7z a -tzip -r ${{ env.PROJECT_RELEASE_PATH }}.zip ./${{ env.PROJECT_RELEASE_PATH }}
-      shell: cmd
+      shell: bash
 
     # Issue: Double zip: https://github.com/actions/upload-artifact/issues/39
     - name: Upload Artifacts
