@@ -9,7 +9,7 @@ A space shooter inspired by games like Enter The Gungeon, Furi and Nuclear Thron
 
 ### Desktop
 ```sh
-$ cmake -B build
+$ cmake -B build -DCMAKE_BUILD_TYPE=Release
 $ cmake --build build
 ```
 
