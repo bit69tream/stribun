@@ -21,6 +21,15 @@ $ emcmake cmake .. -DPLATFORM=Web -DCMAKE_BUILD_TYPE=Release
 $ emmake make
 ```
 
+### Crosscompiling to Windows™
+Install [Mingw-w64](https://www.mingw-w64.org/). *there's probably already a packaged version in your distro's repo*.
+
+```sh
+$ x86_64-w64-mingw32-gcc -v # check that the compiler is in the PATH
+$ cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=mingw.cmake
+$ cmake --build
+```
+
 ## Controls
 
  - <kbd>W</kbd>/<kbd>A</kbd>/<kbd>S</kbd>/<kbd>D</kbd> or <kbd>E</kbd>/<kbd>S</kbd>/<kbd>D</kbd>/<kbd>F</kbd> - movement
