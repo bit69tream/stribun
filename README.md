@@ -4,6 +4,9 @@ A space shooter inspired by games like Enter The Gungeon, Furi and Nuclear Thron
 ![$(STRIBUN)](logo.png "$(STRIBUN)")
 
 ## Building from source
+**You don't need Raylib installed on your system to compile STRIBUN!**
+**CMake will download everything automatically!**
+
 ### Desktop
 ```sh
 $ cmake -B build
