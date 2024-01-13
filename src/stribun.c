@@ -3324,6 +3324,10 @@ void initRaylib() {
   SetExitKey(KEY_NULL);
   SetWindowState(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_MAXIMIZED | FLAG_BORDERLESS_WINDOWED_MODE);
 #endif
+
+  /* fix fragTexCoord for rectangles */
+  Texture2D t = { rlGetTextureIdDefault(), 1, 1, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 };
+  SetShapesTexture(t, (Rectangle){ 0.0f, 0.0f, 1.0f, 1.0f });
 }
 
 void initBackgroundAsteroid(void) {
@@ -5554,10 +5558,6 @@ int main(void) {
 
   currentBoss = BOSS_MARINE;
   seenTutorial = false;
-
-  /* fix fragTexCoord for rectangles */
-  Texture2D t = { rlGetTextureIdDefault(), 1, 1, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 };
-  SetShapesTexture(t, (Rectangle){ 0.0f, 0.0f, 1.0f, 1.0f });
 
 #if defined(PLATFORM_WEB)
   emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 0, canvasSizeChangedCallback);
