@@ -24,10 +24,13 @@ jobs:
         path: ${{ env.PROJECT_NAME }}
 
     - name: Setup emsdk
-      uses: mymindstorm/setup-emsdk@v12
+      uses: mymindstorm/setup-emsdk@v13
       with:
-        version: 3.1.30
+        version: 3.1.51
         actions-cache-folder: 'emsdk-cache'
+
+    - name: Verify emsdk
+      run: emcc -v
 
     - name: Setup Release Paths
       run: |
