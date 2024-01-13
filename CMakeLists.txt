@@ -34,5 +34,5 @@ target_link_libraries(${PROJECT_NAME} raylib)
 if (${PLATFORM} STREQUAL "Web")
     # Tell Emscripten to build an example.html file.
     set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX ".html")
-    set(CMAKE_EXE_LINKER_FLAGS "-s USE_GLFW=3 -sGL_ENABLE_GET_PROC_ADDRESS")
+    set(CMAKE_EXE_LINKER_FLAGS "-sINITIAL_MEMORY=128mb -sASSERTIONS -s USE_GLFW=3 -sGL_ENABLE_GET_PROC_ADDRESS --shell-file ../src/minshell.html --preload-file ../assets")
 endif()

@@ -11,26 +11,17 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ubuntu-20.04
 
     env:
       PROJECT_NAME: ${{ github.event.repository.name }}
-      PROJECT_BUILD_PATH: ${{ github.event.repository.name }}\\src
       PROJECT_RELEASE_PATH: ${{ github.event.repository.name }}_dev_wasm
-      PROJECT_SOURCES: stribun.c
-      BUILD_WEB_SHELL: minshell.html
 
     steps:
     - name: Checkout this repo
       uses: actions/checkout@master
       with:
         path: ${{ env.PROJECT_NAME }}
-
-    - name: Checkout raylib repo
-      uses: actions/checkout@v3
-      with:
-        repository: raysan5/raylib
-        path: raylib
 
     - name: Setup emsdk
       uses: mymindstorm/setup-emsdk@v12
@@ -40,37 +31,37 @@ jobs:
 
     - name: Setup Release Paths
       run: |
-        echo "PROJECT_RELEASE_PATH=${{ env.PROJECT_NAME }}_v${{ github.event.release.tag_name }}_wasm" >> $GITHUB_ENV
+        echo "PROJECT_RELEASE_PATH=${{ env.PROJECT_NAME }}_v${{ github.event.release.tag_name }}_linux_x64" >> $GITHUB_ENV
       shell: bash
       if: github.event_name == 'release' && github.event.action == 'published'
 
     - name: Setup Environment
       run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y --no-install-recommends libglfw3 libglfw3-dev libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxext-dev libxfixes-dev cmake
         mkdir ${{ env.PROJECT_RELEASE_PATH }}
-        dir
-
-    - name: Build raylib Library
-      run: |
-        cd raylib/src
-        emcc -v
-        make PLATFORM=PLATFORM_WEB RAYLIB_BUILD_MODE=RELEASE RAYLIB_LIBTYPE=STATIC EMSDK_PATH="D:/a/${{ env.PROJECT_NAME }}/${{ env.PROJECT_NAME }}/emsdk-cache/emsdk-main" RAYLIB_PROJECT_RELEASE_PATH=. -B
+        ls
+      shell: bash
 
     - name: Build Product
       run: |
-        cd ${{ env.PROJECT_NAME }}/src
-        make PLATFORM=PLATFORM_WEB BUILD_MODE=RELEASE EMSDK_PATH="D:/a/${{ env.PROJECT_NAME }}/${{ env.PROJECT_NAME }}/emsdk-cache/emsdk-main" PROJECT_SOURCE_FILES=${{ env.PROJECT_SOURCES }} PROJECT_BUILD_PATH=. RAYLIB_PATH=../../raylib -B
+        cd ${{ env.PROJECT_NAME }}
+        mkdir build-web
+        cd build-web
+        emcmake cmake .. -DPLATFORM=Web -DCMAKE_BUILD_TYPE=Release
+        emmake make
 
     - name: Generate Artifacts
       run: |
-        dir ${{ env.PROJECT_BUILD_PATH }}
-        copy /Y ${{ env.PROJECT_BUILD_PATH }}\${{ env.PROJECT_NAME }}.data ${{ env.PROJECT_RELEASE_PATH }}\${{ env.PROJECT_NAME }}.data
-        copy /Y ${{ env.PROJECT_BUILD_PATH }}\${{ env.PROJECT_NAME }}.wasm ${{ env.PROJECT_RELEASE_PATH }}\${{ env.PROJECT_NAME }}.wasm
-        copy /Y ${{ env.PROJECT_BUILD_PATH }}\${{ env.PROJECT_NAME }}.js ${{ env.PROJECT_RELEASE_PATH }}\${{ env.PROJECT_NAME }}.js
-        copy /Y ${{ env.PROJECT_BUILD_PATH }}\${{ env.PROJECT_NAME }}.html ${{ env.PROJECT_RELEASE_PATH }}\index.html
-        copy /Y ${{ env.PROJECT_NAME }}\README.md ${{ env.PROJECT_RELEASE_PATH }}\README.md
-        copy /Y ${{ env.PROJECT_NAME }}\LICENSE ${{ env.PROJECT_RELEASE_PATH }}\LICENSE
-        dir ${{ env.PROJECT_RELEASE_PATH }}
-        7z a -tzip -r .\${{ env.PROJECT_RELEASE_PATH }}.zip .\${{ env.PROJECT_RELEASE_PATH }}\*
+        ls ${{ env.PROJECT_NAME }}
+        cp -v ${{ env.PROJECT_NAME }}/build-web/${{ env.PROJECT_NAME }}.data ${{ env.PROJECT_RELEASE_PATH }}/${{ env.PROJECT_NAME }}.data
+        cp -v ${{ env.PROJECT_NAME }}/build-web/${{ env.PROJECT_NAME }}.wasm ${{ env.PROJECT_RELEASE_PATH }}/${{ env.PROJECT_NAME }}.wasm
+        cp -v ${{ env.PROJECT_NAME }}/build-web/${{ env.PROJECT_NAME }}.js ${{ env.PROJECT_RELEASE_PATH }}/${{ env.PROJECT_NAME }}.js
+        cp -v ${{ env.PROJECT_NAME }}/build-web/${{ env.PROJECT_NAME }}.html ${{ env.PROJECT_RELEASE_PATH }}/index.html
+        cp -v ${{ env.PROJECT_NAME }}/README.md ${{ env.PROJECT_RELEASE_PATH }}/README.md
+        cp -v ${{ env.PROJECT_NAME }}/LICENSE ${{ env.PROJECT_RELEASE_PATH }}/LICENSE
+        ls ${{ env.PROJECT_RELEASE_PATH }}
+        7z a -tzip -r ${{ env.PROJECT_RELEASE_PATH }}.zip ./${{ env.PROJECT_RELEASE_PATH }}
       shell: cmd
 
     # Issue: Double zip: https://github.com/actions/upload-artifact/issues/39
