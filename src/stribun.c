@@ -2844,20 +2844,74 @@ void renderFinal(void) {
   } EndDrawing();
 }
 
+typedef struct {
+  union {
+    struct {
+      Vector2 topLeft;
+      Vector2 topRight;
+      Vector2 bottomRight;
+      Vector2 bottomLeft;
+    };
+    Vector2 points[4];
+  };
+} RectanglePoints;
+
+RectanglePoints translateIntoPoints(const Rectangle rect,
+                                    const float angle) {
+  const Vector2 halfSize = {rect.width * 0.5f, rect.height * 0.5f};
+
+  const Vector2 topLeft = {-halfSize.x, -halfSize.y};
+  const Vector2 topRight = {+halfSize.x, -halfSize.y};
+  const Vector2 bottomRight = {+halfSize.x, +halfSize.y};
+  const Vector2 bottomLeft = {-halfSize.x, +halfSize.y};
+
+  const Vector2 pos = {rect.x, rect.y};
+  const float a = angle * DEG2RAD;
+
+  return (RectanglePoints) {
+    .topLeft = Vector2Add(pos, Vector2Rotate(topLeft, a)),
+    .topRight = Vector2Add(pos, Vector2Rotate(topRight, a)),
+    .bottomRight = Vector2Add(pos, Vector2Rotate(bottomRight, a)),
+    .bottomLeft = Vector2Add(pos, Vector2Rotate(bottomLeft, a)),
+  };
+}
+
+bool circleLineCollision(Vector2 start, Vector2 end,
+                         Vector2 circle, float radius) {
+  if (CheckCollisionPointCircle(start, circle, radius) ||
+      CheckCollisionPointCircle(end, circle, radius)) {
+    return true;
+  }
+
+  float lineDistance = Vector2Distance(start, end);
+  float dot =
+    (((circle.x - start.x) * (end.x - start.x)) +
+     ((circle.y - start.y) * (end.y - start.y))) /
+    (lineDistance * lineDistance);
+
+  Vector2 closest = {
+    .x = start.x + (dot * (end.x - start.x)),
+    .y = start.y + (dot * (end.y - start.y)),
+  };
+
+  if (!CheckCollisionPointLine(closest,
+                               start, end,
+                               2)) {
+    return false;
+  }
+
+  return Vector2Distance(closest, circle) <= radius;
+}
+
 bool doesRectangleCollideWithACircle(Rectangle a, float angle,
-                                     Vector2 b, float r,
-                                     Vector2 origin) {
-  Vector2 aPos = {a.x, a.y};
-  Vector2 relBPos = Vector2Subtract(b, aPos);
-  Vector2 rotRelBPos = Vector2Rotate(relBPos, (-angle) * DEG2RAD);
-  Vector2 rotBPos = Vector2Add(aPos, rotRelBPos);
+                                     Vector2 b, float r) {
+  RectanglePoints points = translateIntoPoints(a, angle);
 
-  (void) origin;
-
-  /* a.x -= origin.x; */
-  /* a.y -= origin.y; */
-
-  return CheckCollisionCircleRec(rotBPos, r, a);
+  return
+    circleLineCollision(points.topLeft, points.topRight, b, r) ||
+    circleLineCollision(points.topRight, points.bottomRight, b, r) ||
+    circleLineCollision(points.bottomRight, points.bottomLeft, b, r) ||
+    circleLineCollision(points.bottomLeft, points.topLeft, b, r);
 }
 
 void checkRegularProjectileCollision(int i) {
@@ -2934,39 +2988,6 @@ void bossBallDeactivateWeapon(int i) {
   bossBall.weapons[i].isDeactivated = true;
 }
 
-
-typedef struct {
-  union {
-    struct {
-      Vector2 topLeft;
-      Vector2 topRight;
-      Vector2 bottomRight;
-      Vector2 bottomLeft;
-    };
-    Vector2 points[4];
-  };
-} RectanglePoints;
-
-RectanglePoints translateIntoPoints(const Rectangle rect,
-                                    const float angle) {
-  const Vector2 halfSize = {rect.width * 0.5f, rect.height * 0.5f};
-
-  const Vector2 topLeft = {-halfSize.x, -halfSize.y};
-  const Vector2 topRight = {+halfSize.x, -halfSize.y};
-  const Vector2 bottomRight = {+halfSize.x, +halfSize.y};
-  const Vector2 bottomLeft = {-halfSize.x, +halfSize.y};
-
-  const Vector2 pos = {rect.x, rect.y};
-  const float a = angle * DEG2RAD;
-
-  return (RectanglePoints) {
-    .topLeft = Vector2Add(pos, Vector2Rotate(topLeft, a)),
-    .topRight = Vector2Add(pos, Vector2Rotate(topRight, a)),
-    .bottomRight = Vector2Add(pos, Vector2Rotate(bottomRight, a)),
-    .bottomLeft = Vector2Add(pos, Vector2Rotate(bottomLeft, a)),
-  };
-}
-
 bool checkRectangleCollision1(const Vector2 centerA, const RectanglePoints a,
                               const RectanglePoints b) {
   for (int i = 0; i < 4; i++) {
@@ -3012,7 +3033,7 @@ void checkSquaredProjectileCollision(int i) {
                                asteroids[j].position);
       float r = asteroids[j].processedBoundingCircles[bj].radius;
 
-      if (doesRectangleCollideWithACircle(proj, angle, pos, r, origin)) {
+      if (doesRectangleCollideWithACircle(proj, angle, pos, r)) {
         projectiles[i].willBeDestroyed = true;
         return;
       }
@@ -3022,7 +3043,7 @@ void checkSquaredProjectileCollision(int i) {
   if (!player.isInvincible &&
       !projectiles[i].willBeDestroyed &&
       projectiles[i].isHurtfulForPlayer &&
-      doesRectangleCollideWithACircle(proj, angle, player.position, PLAYER_HITBOX_RADIUS, origin)) {
+      doesRectangleCollideWithACircle(proj, angle, player.position, PLAYER_HITBOX_RADIUS)) {
     projectiles[i].willBeDestroyed = true;
 
     if (player.iframeTimer == 0.0f) {
@@ -3082,7 +3103,7 @@ void checkSquaredProjectileCollision(int i) {
                                bossMarine.processedBoundingCircles[j].position);
       float r = bossMarine.processedBoundingCircles[j].radius;
 
-      if (doesRectangleCollideWithACircle(proj, angle, pos, r, origin)) {
+      if (doesRectangleCollideWithACircle(proj, angle, pos, r)) {
         projectiles[i].willBeDestroyed = true;
         bossMarine.health -= projectiles[i].damage;
         bossMarineStealHealth();
@@ -3091,7 +3112,7 @@ void checkSquaredProjectileCollision(int i) {
     }
   } break;
   case BOSS_BALL: {
-    if (doesRectangleCollideWithACircle(proj, angle, bossBall.position, BOSS_BALL_HITBOX_RADIUS, origin)) {
+    if (doesRectangleCollideWithACircle(proj, angle, bossBall.position, BOSS_BALL_HITBOX_RADIUS)) {
       projectiles[i].willBeDestroyed = true;
       bossBall.health -= projectiles[i].damage;
       bossBallStealHealth();
@@ -3106,7 +3127,7 @@ void checkSquaredProjectileCollision(int i) {
       Vector2 pos = bossBall.weapons[i].position;
       float r = bossBallWeaponHitboxRadiuses[bossBall.weapons[i].type];
 
-      if (doesRectangleCollideWithACircle(proj, angle, pos, r, origin)) {
+      if (doesRectangleCollideWithACircle(proj, angle, pos, r)) {
         projectiles[i].willBeDestroyed = true;
         bossBallDeactivateWeapon(i);
         return;
