@@ -937,7 +937,7 @@ void bossMarineShoot(float speedMultiplier,
   }
 }
 
-static bool bossMarineAttacks[BOSS_MARINE_NOT_SHOOTING] = {0};
+static BossMarineAttack bossMarineLastAttack = 0;
 
 void bossMarineAttack(void) {
   bossMarine.attackTimer -= GetFrameTime();
@@ -947,24 +947,12 @@ void bossMarineAttack(void) {
     bossMarine.isWalking = (bool)GetRandomValue(0, 1);
 
     if (bossMarine.currentAttack == BOSS_MARINE_NOT_SHOOTING) {
-      int c = 0;
-      for (int i = 0; i < BOSS_MARINE_NOT_SHOOTING; i++) {
-        if (bossMarineAttacks[i]) {
-          c++;
-        }
-      }
-
-      if (c == BOSS_MARINE_NOT_SHOOTING) {
-        memset(bossMarineAttacks, 0, sizeof(bossMarineAttacks));
-      }
-
       BossMarineAttack a = 0;
       do {
         a = GetRandomValue(BOSS_MARINE_SINUS_SHOOTING,
                            BOSS_MARINE_BOUNCING_WAVES);
-      } while (bossMarineAttacks[a]);
-      bossMarineAttacks[a] = true;
-
+      } while (a == bossMarineLastAttack);
+      bossMarineLastAttack = a;
       bossMarine.currentAttack = a;
 
       bossMarine.attackTimer = (float)GetRandomValue(3, 7);
@@ -3545,7 +3533,7 @@ void initBossBall(void) {
 
 void initBossMarine(void) {
   memset(&bossMarine, 0, sizeof(bossMarine));
-  memset(bossMarineAttacks, 0, sizeof(bossMarineAttacks));
+  bossMarineLastAttack = 0;
 
   bossMarine = (BossMarine) {
     .position = {
