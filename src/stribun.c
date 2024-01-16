@@ -29,7 +29,7 @@
     #define GLSL_VERSION            100
 #endif
 
-#define GAME_VERSION "v0.1.2"
+#define GAME_VERSION "v0.1.4"
 
 #define RLIGHTS_IMPLEMENTATION
 #include "rlights.h"
